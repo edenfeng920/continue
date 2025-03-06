@@ -17,12 +17,20 @@ export default defineConfig({
     },
   },
   server: {
+    // host: '10.25.26.225', // 替换为你的本地 IP 地址
     cors: {
       origin: "*",
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
       allowedHeaders: ["*", "Content-Type", "Authorization"],
       credentials: true,
     },
+/*     proxy: {
+      '/api': {
+        target: 'http://10.29.180.154:8777', // 目标服务器地址
+        changeOrigin: true,
+        //rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }, */
   },
   test: {
     globals: true,
