@@ -14,13 +14,8 @@ import Stats from "./pages/stats";
 import { ROUTES } from "./util/navigation";
 import { SubmenuContextProvidersProvider } from "./context/SubmenuContextProviders";
 import ConfigPage from "./pages/config";
-import LoginPage from "./pages/login";
 
 const router = createMemoryRouter([
-  {
-    path: ROUTES.LOGIN, 
-    element: <LoginPage />,
-  },
   {
     path: ROUTES.HOME,
     element: <Layout />,
@@ -68,9 +63,7 @@ const router = createMemoryRouter([
       },
     ],
   },
-], {
-    initialEntries: [ROUTES.LOGIN], // 设置初始路径为 /login
-}
+]
 );
 
 /*

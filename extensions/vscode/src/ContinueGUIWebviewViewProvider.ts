@@ -1,11 +1,12 @@
 import { ConfigHandler } from "core/config/ConfigHandler";
 import * as vscode from "vscode";
-
+import * as path from 'path';
+import * as fs from 'fs';
+import axios from 'axios';
 import { getTheme } from "./util/getTheme";
 import { getExtensionVersion } from "./util/util";
 import { getExtensionUri, getNonce, getUniqueId } from "./util/vscode";
 import { VsCodeWebviewProtocol } from "./webviewProtocol";
-
 import type { FileEdit } from "core";
 
 export class ContinueGUIWebviewViewProvider
@@ -13,6 +14,10 @@ export class ContinueGUIWebviewViewProvider
 {
   public static readonly viewType = "continue.continueGUIView";
   public webviewProtocol: VsCodeWebviewProtocol;
+  private _webview?: vscode.Webview;
+  private _webviewView?: vscode.WebviewView;
+  private isLoggedIn = false;
+  private loginMessageListener: vscode.Disposable | null = null;
 
   public get isReady(): boolean {
     return !!this.webview;
@@ -21,18 +26,30 @@ export class ContinueGUIWebviewViewProvider
   resolveWebviewView(
     webviewView: vscode.WebviewView,
     _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
+    _token: vscode.CancellationToken
   ): void | Thenable<void> {
     this._webviewView = webviewView;
     this._webview = webviewView.webview;
-    webviewView.webview.html = this.getSidebarContent(
-      this.extensionContext,
-      webviewView,
-    );
-  }
 
-  private _webview?: vscode.Webview;
-  private _webviewView?: vscode.WebviewView;
+    if (!this.isLoggedIn) {
+      this.showLoginPage(webviewView);
+      this.loginMessageListener = this._webview.onDidReceiveMessage(
+        async (message) => {
+          const command = message.command;
+          if (command === 'login') {
+            await this.handleLogin(message.data);
+          }
+        },
+        undefined,
+        this.extensionContext.subscriptions
+      );
+    } else {
+      webviewView.webview.html = this.getSidebarContent(
+        this.extensionContext,
+        webviewView,
+      );
+    }
+  }
 
   get isVisible() {
     return this._webviewView?.visible;
@@ -53,20 +70,20 @@ export class ContinueGUIWebviewViewProvider
   sendMainUserInput(input: string) {
     this.webview?.postMessage({
       type: "userInput",
-      input,
+      input
     });
   }
 
   constructor(
     private readonly configHandlerPromise: Promise<ConfigHandler>,
     private readonly windowId: string,
-    private readonly extensionContext: vscode.ExtensionContext,
+    private readonly extensionContext: vscode.ExtensionContext
   ) {
     this.webviewProtocol = new VsCodeWebviewProtocol(
       (async () => {
         const configHandler = await this.configHandlerPromise;
         return configHandler.reloadConfig();
-      }).bind(this),
+      }).bind(this)
     );
   }
 
@@ -75,7 +92,7 @@ export class ContinueGUIWebviewViewProvider
     panel: vscode.WebviewPanel | vscode.WebviewView,
     page: string | undefined = undefined,
     edits: FileEdit[] | undefined = undefined,
-    isFullScreen = false,
+    isFullScreen = false
   ): string {
     const extensionUri = getExtensionUri();
     let scriptUri: string;
@@ -102,15 +119,15 @@ export class ContinueGUIWebviewViewProvider
       enableScripts: true,
       localResourceRoots: [
         vscode.Uri.joinPath(extensionUri, "gui"),
-        vscode.Uri.joinPath(extensionUri, "assets"),
+        vscode.Uri.joinPath(extensionUri, "assets")
       ],
       enableCommandUris: true,
       portMapping: [
         {
           webviewPort: 65433,
-          extensionHostPort: 65433,
-        },
-      ],
+          extensionHostPort: 65433
+        }
+      ]
     };
 
     const nonce = getNonce();
@@ -170,8 +187,8 @@ export class ContinueGUIWebviewViewProvider
         <script>window.colorThemeName = "dark-plus"</script>
         <script>window.workspacePaths = ${JSON.stringify(
           vscode.workspace.workspaceFolders?.map((folder) =>
-            folder.uri.toString(),
-          ) || [],
+            folder.uri.toString()
+          ) || []
         )}</script>
         <script>window.isFullScreen = ${isFullScreen}</script>
 
@@ -183,5 +200,90 @@ export class ContinueGUIWebviewViewProvider
         ${page ? `<script>window.location.pathname = "${page}"</script>` : ""}
       </body>
     </html>`;
+  }
+
+  private showLoginPage(webviewView: vscode.WebviewView) {
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.file(path.join(this.extensionContext.extensionPath, 'webview'))
+      ]
+    };
+
+    const htmlContent = this.getHtmlContent('webview/login.html', webviewView);
+    webviewView.webview.html = htmlContent;
+  }
+
+  private getHtmlContent(htmlFilePath: string, webviewView: vscode.WebviewView): string {
+    const fullPath = path.join(this.extensionContext.extensionPath, htmlFilePath);
+    let htmlContent = fs.readFileSync(fullPath, 'utf8');
+
+    const baseUri = webviewView.webview.asWebviewUri(vscode.Uri.file(path.join(this.extensionContext.extensionPath, 'webview'))).toString();
+    htmlContent = htmlContent.replace(/(src|href)="([^"]+)"/g, (match, attr, src) => {
+      if (!src.startsWith('http')) {
+        return `${attr}="${baseUri}/${src}"`;
+      }
+      return match;
+    });
+
+    return htmlContent;
+  }
+
+  private async handleLogin(data: any) {
+    const product_source = 'FZH_CS'; 
+    const api_key = 'RPqltRBX7MRICFGKGKxk/w=='; 
+    const fullData = {
+      ...data,
+      product_source,
+      api_key
+    };
+
+    try {
+      const response = await axios.post(
+        'http://10.29.180.154:8777/api/ext_doc_qa/ext_user_check',
+        fullData,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          timeout: 5000 
+        }
+      );
+      const responseData = response.data;
+      // 将登录结果发送给 Webview
+      this._webview?.postMessage({
+        command: 'loginResult',
+        data: responseData
+      });
+      if (responseData.code === 200) {
+        // 标记用户已登录
+        this.isLoggedIn = true;
+        // 移除登录消息监听
+        this.loginMessageListener?.dispose();
+        this.loginMessageListener = null;
+        // 登录成功，显示后续页面
+        if (this._webviewView) {
+          this._webviewView.webview.html = this.getSidebarContent(
+            this.extensionContext,
+            this._webviewView
+          );
+        }
+        console.log('登录成功');
+      } else {
+        // 登录失败，继续监听下次输入
+        console.log('登录失败，继续等待输入');
+        vscode.window.showErrorMessage(`登录失败: ${responseData.msg}`);
+      }
+    } catch (error) {
+      console.error('Error during login:', error);
+      this._webview?.postMessage({
+        command: 'loginResult',
+        data: {
+          code: 500,
+          msg: '登录失败，请稍后再试'
+        }
+      });
+      vscode.window.showErrorMessage('登录失败，请稍后再试');
+    }
   }
 }

@@ -546,7 +546,7 @@
       "activitybar": [
         {
           "id": "continue",
-          "title": "Continue",
+          "title": "仓颉智码",
           "icon": "media/sidebar-icon.png"
         }
       ]
@@ -556,7 +556,7 @@
         {
           "type": "webview",
           "id": "continue.continueGUIView",
-          "name": "Continue",
+          "name": "仓颉智码",
           "icon": "media/sidebar-icon.png",
           "visibility": "visible"
         }
