@@ -1,8 +1,7 @@
 {
   "name": "continue",
   "icon": "media/icon.png",
-  "author": "Continue Dev, Inc",
-  "version": "0.9.269",
+  "version": "0.9.270",
   "repository": {
     "type": "git",
     "url": "https://github.com/continuedev/continue"
@@ -18,10 +17,10 @@
   "homepage": "https://continue.dev",
   "qna": "https://github.com/continuedev/continue/issues/new/choose",
   "license": "Apache-2.0",
-  "displayName": "Continue - Codestral, Claude, and more",
+  "displayName": "仓颉智码",
   "pricing": "Free",
-  "description": "The leading open-source AI code assistant",
-  "publisher": "Continue",
+  "description": "代码辅助工具，支持多种编程语言，提供代码补全、代码解释等功能。",
+  "publisher": "ZTS",
   "engines": {
     "vscode": "^1.70.0",
     "node": ">=20.11.0"

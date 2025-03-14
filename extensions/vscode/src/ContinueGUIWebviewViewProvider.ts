@@ -12,6 +12,7 @@ import type { FileEdit } from "core";
 export class ContinueGUIWebviewViewProvider
   implements vscode.WebviewViewProvider
 {
+  //视图名称已在package中声明
   public static readonly viewType = "continue.continueGUIView";
   public webviewProtocol: VsCodeWebviewProtocol;
   private _webview?: vscode.Webview;
@@ -31,6 +32,7 @@ export class ContinueGUIWebviewViewProvider
     this._webviewView = webviewView;
     this._webview = webviewView.webview;
 
+    // 如果没有登录，则显示登录页面，走登录流程
     if (!this.isLoggedIn) {
       this.showLoginPage(webviewView);
       this.loginMessageListener = this._webview.onDidReceiveMessage(
@@ -101,7 +103,8 @@ export class ContinueGUIWebviewViewProvider
       .asWebviewUri(vscode.Uri.joinPath(extensionUri, "gui"))
       .toString();
 
-    const inDevelopmentMode =
+    // 根据是否开发模式，配置不同的导入页面路径
+      const inDevelopmentMode =
       context?.extensionMode === vscode.ExtensionMode.Development;
     if (!inDevelopmentMode) {
       scriptUri = panel.webview
@@ -202,6 +205,7 @@ export class ContinueGUIWebviewViewProvider
     </html>`;
   }
 
+  //登录页面的html在根目录下webview文件夹中
   private showLoginPage(webviewView: vscode.WebviewView) {
     webviewView.webview.options = {
       enableScripts: true,
@@ -229,6 +233,7 @@ export class ContinueGUIWebviewViewProvider
     return htmlContent;
   }
 
+  //登录页面通过插件与服务端通信
   private async handleLogin(data: any) {
     const product_source = 'FZH_CS'; 
     const api_key = 'RPqltRBX7MRICFGKGKxk/w=='; 

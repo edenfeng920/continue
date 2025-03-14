@@ -79,7 +79,36 @@ export const defaultSlashCommandsJetBrains = [
 ];
 
 export const defaultConfig: SerializedContinueConfig = {
-  models: [],
+  models: [  
+    {
+      "title": "Qwen2.5-32B",
+      "provider": "openai",
+      "model": "CharAI-32B",
+      "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+      "apiBase": "http://10.49.24.61:8777/v1"
+    },
+    {
+      "title": "DeepSeek-R1",
+      "provider": "openai",
+      "model": "DeepSeek-R1",
+      "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+      "apiBase": "http://10.49.24.61:8777/v1"
+    },
+    {
+      "title": "Qwen2.5-Coder-7B",
+      "provider": "openai",
+      "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "apiKey": "sk-rjkckqessvzknlithpveozwctlfuizevzsutmqipcklinizm",
+      "apiBase": "https://api.siliconflow.cn/v1"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Qwen2.5-Coder-7B",
+    "provider": "openai",
+    "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "apiKey": "sk-rjkckqessvzknlithpveozwctlfuizevzsutmqipcklinizm",
+    "apiBase": "https://api.siliconflow.cn/v1"
+  },
   contextProviders: defaultContextProvidersVsCode,
   slashCommands: defaultSlashCommandsVscode,
 };
