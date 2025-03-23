@@ -126,7 +126,7 @@ export function HistoryTableRow({
           {hovered && !editing && (
             <div className="bg-vsc-background absolute right-2 top-1/2 ml-auto flex -translate-y-1/2 transform items-center gap-x-2 rounded-full py-1.5 pl-4 pr-4 shadow-md">
               <HeaderButtonWithToolTip
-                text="Edit"
+                text="编辑对话名称"
                 onClick={async (e) => {
                   e.stopPropagation();
                   setEditing(true);
@@ -135,7 +135,7 @@ export function HistoryTableRow({
                 <PencilSquareIcon width="1.3em" height="1.3em" />
               </HeaderButtonWithToolTip>
               <HeaderButtonWithToolTip
-                text="Delete"
+                text="删除对话"
                 onClick={async (e) => {
                   e.stopPropagation();
                   await dispatch(deleteSession(sessionMetadata.sessionId));

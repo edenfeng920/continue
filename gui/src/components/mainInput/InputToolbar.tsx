@@ -153,7 +153,7 @@ function InputToolbar(props: InputToolbarProps) {
                 />
 
                 <ToolTip id="add-context-item-tooltip" place="top-middle">
-                  Add context (files, docs, urls, etc.)
+                  引用代码或知识库
                 </ToolTip>
               </HoverItem>
             )}

@@ -616,7 +616,7 @@ const getCommandsMap: (
 
       streamInlineEdit(
         "comment",
-        "Write comments for this code. Do not change anything about the code itself.",
+        "Write comments for this code in Chinese. Do not change anything about the code itself. Be careful not to translate the text in the code.",
       );
     },
     "continue.writeDocstringForCode": async () => {
@@ -624,7 +624,7 @@ const getCommandsMap: (
 
       streamInlineEdit(
         "docstring",
-        "Write a docstring for this code. Do not change anything about the code itself.",
+        "Write a docstring for this code in Chinese. Do not change anything about the code itself. Be careful not to translate the text in the code.",
         true,
       );
     },
@@ -908,14 +908,14 @@ const getCommandsMap: (
 
       quickPick.items = [
         {
-          label: "$(question) Open help center",
+          label: "$(question) 帮助中心",
         },
         {
-          label: "$(comment) Open chat",
+          label: "$(comment) 发起对话",
           description: getMetaKeyLabel() + " + L",
         },
         {
-          label: "$(screen-full) Open full screen chat",
+          label: "$(screen-full) 全屏模式对话",
           description:
             getMetaKeyLabel() + " + K, " + getMetaKeyLabel() + " + M",
         },
@@ -923,14 +923,14 @@ const getCommandsMap: (
           label: quickPickStatusText(targetStatus),
         },
         {
-          label: "$(gear) Configure autocomplete options",
+          label: "$(gear) 自动补全配置",
         },
         {
-          label: "$(feedback) Give feedback",
+          label: "$(feedback) 提供反馈",
         },
         {
           kind: vscode.QuickPickItemKind.Separator,
-          label: "Switch model",
+          label: "切换大模型",
         },
         ...autocompleteModels.map((model) => ({
           label: getAutocompleteStatusBarTitle(selected, model),
@@ -950,7 +950,7 @@ const getCommandsMap: (
             vscode.ConfigurationTarget.Global,
           );
         } else if (
-          selectedOption === "$(gear) Configure autocomplete options"
+          selectedOption === "$(gear) 自动补全配置"
         ) {
           ide.openFile(vscode.Uri.file(getConfigJsonPath()).toString());
         } else if (
@@ -961,16 +961,16 @@ const getCommandsMap: (
             selectedOption,
           );
           configHandler.reloadConfig();
-        } else if (selectedOption === "$(feedback) Give feedback") {
+        } else if (selectedOption === "$(feedback) 提供反馈") {
           vscode.commands.executeCommand("continue.giveAutocompleteFeedback");
-        } else if (selectedOption === "$(comment) Open chat (Cmd+L)") {
+        } else if (selectedOption === "$(comment) 发起对话 (Cmd+L)") {
           vscode.commands.executeCommand("continue.focusContinueInput");
         } else if (
           selectedOption ===
-          "$(screen-full) Open full screen chat (Cmd+K Cmd+M)"
+          "$(screen-full) 全屏模式对话 (Cmd+K Cmd+M)"
         ) {
           vscode.commands.executeCommand("continue.toggleFullScreen");
-        } else if (selectedOption === "$(question) Open help center") {
+        } else if (selectedOption === "$(question) 帮助中心") {
           focusGUI();
           vscode.commands.executeCommand("continue.navigateTo", "/more", true);
         }

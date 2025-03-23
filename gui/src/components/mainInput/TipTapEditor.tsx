@@ -562,8 +562,8 @@ function TipTapEditor(props: TipTapEditorProps) {
     }
 
     return historyLength === 0
-      ? "Ask anything, '@' to add context"
-      : "Ask a follow-up";
+      ? "输入任意问题, 可使用'@'添加上下文信息"
+      : "继续追问";
   }
 
   useEffect(() => {

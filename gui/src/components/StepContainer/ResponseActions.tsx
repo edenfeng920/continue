@@ -34,7 +34,7 @@ export default function ResponseActions({
       {isTruncated && (
         <HeaderButtonWithToolTip
           tabIndex={-1}
-          text="Continue generation"
+          text="继续生成"
           onClick={onContinueGeneration}
         >
           <BarsArrowDownIcon className="h-3.5 w-3.5 text-gray-500" />
@@ -43,7 +43,7 @@ export default function ResponseActions({
 
       <HeaderButtonWithToolTip
         testId={`delete-button-${index}`}
-        text="Delete"
+        text="删除"
         tabIndex={-1}
         onClick={onDelete}
       >

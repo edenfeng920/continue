@@ -18,11 +18,11 @@ export const quickPickStatusText = (status: StatusBarStatus | undefined) => {
   switch (status) {
     case undefined:
     case StatusBarStatus.Disabled:
-      return "$(circle-slash) Disable autocomplete";
+      return "$(circle-slash) 禁用自动补全";
     case StatusBarStatus.Enabled:
-      return "$(check) Enable autocomplete";
+      return "$(check) 开启自动补全";
     case StatusBarStatus.Paused:
-      return "$(debug-pause) Pause autocomplete";
+      return "$(debug-pause) 暂停自动补全";
   }
 };
 
@@ -30,11 +30,11 @@ export const getStatusBarStatusFromQuickPickItemLabel = (
   label: string,
 ): StatusBarStatus | undefined => {
   switch (label) {
-    case "$(circle-slash) Disable autocomplete":
+    case "$(circle-slash) 禁用自动补全":
       return StatusBarStatus.Disabled;
-    case "$(check) Enable autocomplete":
+    case "$(check) 开启自动补全":
       return StatusBarStatus.Enabled;
-    case "$(debug-pause) Pause autocomplete":
+    case "$(debug-pause) 暂停自动补全":
       return StatusBarStatus.Paused;
     default:
       return undefined;
@@ -47,20 +47,20 @@ const statusBarItemText = (
   error?: boolean,
 ) => {
   if (error) {
-    return "$(alert) Continue (FATAL ERROR)";
+    return "$(alert) 仓颉智码 (FATAL ERROR)";
   }
 
   switch (status) {
     case undefined:
       if (loading) {
-        return "$(loading~spin) Continue";
+        return "$(loading~spin) 仓颉智码";
       }
     case StatusBarStatus.Disabled:
-      return "$(circle-slash) Continue";
+      return "$(circle-slash) 仓颉智码";
     case StatusBarStatus.Enabled:
-      return "$(check) Continue";
+      return "$(check) 仓颉智码";
     case StatusBarStatus.Paused:
-      return "$(debug-pause) Continue";
+      return "$(debug-pause) 仓颉智码";
   }
 };
 
@@ -68,11 +68,11 @@ const statusBarItemTooltip = (status: StatusBarStatus | undefined) => {
   switch (status) {
     case undefined:
     case StatusBarStatus.Disabled:
-      return "Click to enable tab autocomplete";
+      return "自动补全已禁用，点击去开启";
     case StatusBarStatus.Enabled:
-      return "Tab autocomplete is enabled";
+      return "自动补全已开启";
     case StatusBarStatus.Paused:
-      return "Tab autocomplete is paused";
+      return "自动补全已暂停";
   }
 };
 
@@ -174,7 +174,7 @@ export function getAutocompleteStatusBarDescription(
     return undefined;
   }
 
-  let description = "Current autocomplete model";
+  let description = "当前自动补全模型";
 
   // Only set for Mistral since our default config includes Codestral without
   // an API key
@@ -190,7 +190,7 @@ export function getAutocompleteStatusBarTitle(
   { title }: ILLM,
 ): string {
   if (!title) {
-    return "Unnamed Model";
+    return "未命名模型";
   }
 
   if (title === selected) {

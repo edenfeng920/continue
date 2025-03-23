@@ -151,19 +151,19 @@
       {
         "command": "continue.applyCodeFromChat",
         "category": "Continue",
-        "title": "Apply code from chat",
+        "title": "应用代码",
         "group": "Continue"
       },
       {
         "command": "continue.acceptDiff",
         "category": "Continue",
-        "title": "Accept Diff",
+        "title": "接受变更",
         "group": "Continue"
       },
       {
         "command": "continue.rejectDiff",
         "category": "Continue",
-        "title": "Reject Diff",
+        "title": "拒绝变更",
         "group": "Continue",
         "icon": "$(stop)"
       },
@@ -182,44 +182,44 @@
       {
         "command": "continue.focusEdit",
         "category": "Continue",
-        "title": "Generate Code",
+        "title": "生成代码",
         "group": "Continue"
       },
       {
         "command": "continue.focusContinueInput",
         "category": "Continue",
-        "title": "Add Highlighted Code to Context and Clear Chat",
+        "title": "发起提问并清空对话",
         "group": "Continue"
       },
       {
         "command": "continue.focusContinueInputWithoutClear",
         "category": "Continue",
-        "title": "Add Highlighted Code to Context",
+        "title": "发起提问",
         "group": "Continue"
       },
       {
         "command": "continue.debugTerminal",
         "category": "Continue",
-        "title": "Debug Terminal",
+        "title": "调试终端",
         "group": "Continue"
       },
       {
         "command": "continue.exitEditMode",
         "category": "Continue",
-        "title": "Exit Edit Mode",
+        "title": "退出编辑模式",
         "group": "Continue"
       },
       {
         "command": "continue.toggleFullScreen",
         "category": "Continue",
-        "title": "Open in new window",
+        "title": "在新窗口中打开",
         "icon": "$(link-external)",
         "group": "Continue"
       },
       {
         "command": "continue.openConfigPage",
         "category": "Continue",
-        "title": "Open Settings",
+        "title": "设置",
         "icon": "$(gear)",
         "group": "Continue"
       },
@@ -232,20 +232,20 @@
       {
         "command": "continue.selectFilesAsContext",
         "category": "Continue",
-        "title": "Select Files as Context",
+        "title": "仓颉智码：设为上下文信息",
         "group": "Continue"
       },
       {
         "command": "continue.newSession",
         "category": "Continue",
-        "title": "New Session",
+        "title": "新建对话",
         "icon": "$(add)",
         "group": "Continue"
       },
       {
         "command": "continue.viewHistory",
         "category": "Continue",
-        "title": "View History",
+        "title": "历史对话",
         "icon": "$(history)",
         "group": "Continue"
       },
@@ -264,38 +264,38 @@
       {
         "command": "continue.openMorePage",
         "category": "Continue",
-        "title": "More",
+        "title": "更多",
         "icon": "$(ellipsis)",
         "group": "Continue"
       },
       {
         "command": "continue.writeCommentsForCode",
         "category": "Continue",
-        "title": "Write Comments for this Code",
+        "title": "生成注释",
         "group": "Continue"
       },
       {
         "command": "continue.writeDocstringForCode",
         "category": "Continue",
-        "title": "Write a Docstring for this Code",
+        "title": "生成Docstring",
         "group": "Continue"
       },
       {
         "command": "continue.fixCode",
         "category": "Continue",
-        "title": "Fix this Code",
+        "title": "修复代码",
         "group": "Continue"
       },
       {
         "command": "continue.optimizeCode",
         "category": "Continue",
-        "title": "Optimize this Code",
+        "title": "优化代码",
         "group": "Continue"
       },
       {
         "command": "continue.fixGrammar",
         "category": "Continue",
-        "title": "Fix Grammar / Spelling",
+        "title": "修复语法拼写问题",
         "group": "Continue"
       },
       {
@@ -423,7 +423,7 @@
     "submenus": [
       {
         "id": "continue.continueSubMenu",
-        "label": "Continue"
+        "label": "仓颉智码"
       }
     ],
     "menus": {
@@ -465,11 +465,6 @@
         },
         {
           "command": "continue.writeCommentsForCode",
-          "group": "Continue",
-          "when": "editorHasSelection"
-        },
-        {
-          "command": "continue.writeDocstringForCode",
           "group": "Continue",
           "when": "editorHasSelection"
         },

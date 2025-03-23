@@ -89,7 +89,7 @@ function UserSettingsUI() {
   return (
     <div className="flex flex-col gap-4 py-6">
       <div>
-        <h2 className="mb-2 mt-0">User settings</h2>
+        <h2 className="mb-2 mt-0">用户设置</h2>
       </div>
 
       <div className="flex flex-col gap-4">

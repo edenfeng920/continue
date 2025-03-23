@@ -10,7 +10,6 @@ import PageHeader from "../../components/PageHeader";
 import { IdeMessengerContext } from "../../context/IdeMessenger";
 import { useNavigationListener } from "../../hooks/useNavigationListener";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
-import { setOnboardingCard } from "../../redux/slices/uiSlice";
 import { saveCurrentSession } from "../../redux/thunks/session";
 import IndexingProgress from "./IndexingProgress";
 import KeyboardShortcuts from "./KeyboardShortcuts";
@@ -51,61 +50,13 @@ function MorePage() {
         </div>
 
         <div className="py-5">
-          <h3 className="mb-4 mt-0 text-xl">Help center</h3>
+          <h3 className="mb-4 mt-0 text-xl">数据统计</h3>
           <div className="-mx-4 flex flex-col">
             <MoreHelpRow
-              title="Documentation"
-              description="Learn how to configure and use Continue"
-              Icon={ArrowTopRightOnSquareIcon}
-              onClick={() =>
-                ideMessenger.post("openUrl", "https://docs.continue.dev/")
-              }
-            />
-
-            <MoreHelpRow
-              title="Have an issue?"
-              description="Let us know on GitHub and we'll do our best to resolve it"
-              Icon={ArrowTopRightOnSquareIcon}
-              onClick={() =>
-                ideMessenger.post(
-                  "openUrl",
-                  "https://github.com/continuedev/continue/issues/new/choose",
-                )
-              }
-            />
-
-            <MoreHelpRow
-              title="Join the community!"
-              description="Join us on Discord to stay up-to-date on the latest developments"
-              Icon={ArrowTopRightOnSquareIcon}
-              onClick={() =>
-                ideMessenger.post("openUrl", "https://discord.gg/vapESyrFmJ")
-              }
-            />
-
-            <MoreHelpRow
-              title="Token usage"
-              description="Daily token usage across models"
+              title="Token用量统计"
+              description="按日、按模型统计Token用量"
               Icon={TableCellsIcon}
               onClick={() => navigate("/stats")}
-            />
-
-            <MoreHelpRow
-              title="Quickstart"
-              description="Reopen the quickstart and tutorial file"
-              Icon={DocumentArrowUpIcon}
-              onClick={async () => {
-                navigate("/");
-                // Used to clear the chat panel before showing onboarding card
-                await dispatch(
-                  saveCurrentSession({
-                    openNewSession: true,
-                    generateTitle: true,
-                  }),
-                );
-                dispatch(setOnboardingCard({ show: true, activeTab: "Best" }));
-                ideMessenger.post("showTutorial", undefined);
-              }}
             />
           </div>
         </div>

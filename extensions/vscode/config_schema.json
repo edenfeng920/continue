@@ -3261,11 +3261,11 @@
               "properties": {
                 "comment": {
                   "type": "string",
-                  "default": "Write comments for this code. Do not change anything about the code itself."
+                  "default": "Write comments for this code in Chinese. Do not change anything about the code itself. Be careful not to translate the text in the code."
                 },
                 "docstring": {
                   "type": "string",
-                  "default": "Write a docstring for this code. Do not change anything about the code itself."
+                  "default": "Write a docstring for this code in Chinese. Do not change anything about the code itself. Be careful not to translate the text in the code."
                 },
                 "fix": {
                   "type": "string",

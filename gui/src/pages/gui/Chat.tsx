@@ -30,11 +30,11 @@ import { NewSessionButton } from "../../components/mainInput/NewSessionButton";
 import resolveEditorContent from "../../components/mainInput/resolveInput";
 import { TutorialCard } from "../../components/mainInput/TutorialCard";
 import AssistantSelect from "../../components/modelSelection/platform/AssistantSelect";
-import {
-  OnboardingCard,
-  useOnboardingCard,
-} from "../../components/OnboardingCard";
-import { PlatformOnboardingCard } from "../../components/OnboardingCard/platform/PlatformOnboardingCard";
+// import {
+//   OnboardingCard,
+//   useOnboardingCard,
+// } from "../../components/OnboardingCard";
+// import { PlatformOnboardingCard } from "../../components/OnboardingCard/platform/PlatformOnboardingCard";
 import PageHeader from "../../components/PageHeader";
 import StepContainer from "../../components/StepContainer";
 import AcceptRejectAllButtons from "../../components/StepContainer/AcceptRejectAllButtons";
@@ -191,8 +191,8 @@ export function Chat() {
   const posthog = usePostHog();
   const dispatch = useAppDispatch();
   const ideMessenger = useContext(IdeMessengerContext);
-  const onboardingCard = useOnboardingCard();
-  const { showTutorialCard, closeTutorialCard } = useTutorialCard();
+  // const onboardingCard = useOnboardingCard();
+  // const { showTutorialCard, closeTutorialCard } = useTutorialCard();
   const selectedModelTitle = useAppSelector(
     (store) => store.config.defaultModelTitle,
   );
@@ -267,7 +267,7 @@ export function Chat() {
 
           // Card in chat will only show if no history
           // Also, note that platform card ignore the "Best", always opens to main tab
-          onboardingCard.open("Best");
+          //onboardingCard.open("Best");
 
           // If history, show the dialog, which will automatically close if there is not history
           if (history.length) {
@@ -539,7 +539,7 @@ export function Chat() {
                     className="flex items-center gap-2"
                   >
                     <ArrowLeftIcon className="h-3 w-3" />
-                    Last Session
+                    上次对话
                   </NewSessionButton>
                 </div>
               )}
@@ -563,7 +563,8 @@ export function Chat() {
             />
           )}
 
-          {history.length === 0 && (
+          {/* 隐藏原有登陆卡片 */}
+          {/* {history.length === 0 && (
             <>
               {onboardingCard.show && (
                 <div className="mx-2 mt-10">
@@ -581,7 +582,7 @@ export function Chat() {
                 </div>
               )}
             </>
-          )}
+          )} */}
         </div>
       </div>
 
