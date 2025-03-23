@@ -26,10 +26,10 @@ function MorePage() {
 
   return (
     <div className="overflow-y-scroll">
-      <PageHeader onTitleClick={() => navigate("/")} title="Chat" />
+      <PageHeader onTitleClick={() => navigate("/")} title="返回对话" />
 
       <div className="gap-2 divide-x-0 divide-y-2 divide-solid divide-zinc-700 px-4">
-        <div className="py-5">
+        {/* <div className="py-5">
           <div>
             <h3 className="mx-auto mb-1 mt-0 text-xl">@codebase index</h3>
             <span className="w-3/4 text-xs text-stone-500">
@@ -43,11 +43,11 @@ function MorePage() {
           ) : (
             <IndexingProgress />
           )}
-        </div>
+        </div> */}
 
-        <div className="flex flex-col py-5">
+        {/* <div className="flex flex-col py-5">
           <DocsIndexingStatuses />
-        </div>
+        </div> */}
 
         <div className="py-5">
           <h3 className="mb-4 mt-0 text-xl">数据统计</h3>
@@ -62,7 +62,7 @@ function MorePage() {
         </div>
 
         <div>
-          <h3 className="mx-auto mb-1 text-lg">Keyboard shortcuts</h3>
+          <h3 className="mx-auto mb-1 text-lg">快捷键</h3>
           <KeyboardShortcuts />
         </div>
       </div>

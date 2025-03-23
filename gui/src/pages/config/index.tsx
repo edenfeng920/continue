@@ -54,13 +54,13 @@ function ConfigPage() {
 
   return (
     <div className="overflow-y-scroll">
-      <PageHeader onTitleClick={() => navigate("/")} title="Chat" />
+      <PageHeader onTitleClick={() => navigate("/")} title="返回对话" />
 
       <div className="divide-x-0 divide-y-2 divide-solid divide-zinc-700 px-4">
 
         <div className="flex flex-col">
           <div className="flex max-w-[400px] flex-col gap-4 py-6">
-            <h2 className="mb-1 mt-0">Configuration</h2>
+            <h2 className="mb-1 mt-0">大模型配置</h2>
             {profiles ? (
               <>
                 <Listbox value={selectedProfile?.id} onChange={changeProfileId}>
@@ -126,7 +126,7 @@ function ConfigPage() {
                 {selectedProfile && (
                   <SecondaryButton onClick={handleOpenConfig}>
                     {selectedProfile.id === "local"
-                      ? "Open Config File"
+                      ? "打开配置文件"
                       : hubEnabled
                         ? "Open Assistant"
                         : "Open Workspace"}

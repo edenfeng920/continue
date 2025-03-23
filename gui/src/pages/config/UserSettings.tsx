@@ -100,7 +100,7 @@ function UserSettingsUI() {
               codeWrap: !codeWrap,
             })
           }
-          text="Wrap Codeblocks"
+          text="自动换行"
         />
         <ToggleSwitch
           isToggled={displayRawMarkdown}
@@ -109,7 +109,7 @@ function UserSettingsUI() {
               displayRawMarkdown: !displayRawMarkdown,
             })
           }
-          text="Display Raw Markdown"
+          text="显示原始 Markdown 格式"
         />
         <ToggleSwitch
           isToggled={allowAnonymousTelemetry}
@@ -118,7 +118,7 @@ function UserSettingsUI() {
               allowAnonymousTelemetry: !allowAnonymousTelemetry,
             })
           }
-          text="Allow Anonymous Telemetry"
+          text="允许匿名收集数据"
         />
         <ToggleSwitch
           isToggled={disableIndexing}
@@ -127,7 +127,7 @@ function UserSettingsUI() {
               disableIndexing: !disableIndexing,
             })
           }
-          text="Disable Indexing"
+          text="禁用索引功能"
         />
 
         <ToggleSwitch
@@ -137,7 +137,7 @@ function UserSettingsUI() {
               disableSessionTitles: !disableSessionTitles,
             })
           }
-          text="Disable Session Titles"
+          text="禁用自动生成对话标题"
         />
         <ToggleSwitch
           isToggled={readResponseTTS}
@@ -146,7 +146,7 @@ function UserSettingsUI() {
               readResponseTTS: !readResponseTTS,
             })
           }
-          text="Response Text to Speech"
+          text="将响应内容转换为语音播报"
         />
 
         <ToggleSwitch
@@ -156,7 +156,7 @@ function UserSettingsUI() {
               showChatScrollbar: !showChatScrollbar,
             })
           }
-          text="Show Chat Scrollbar"
+          text="对话框显示滚动条"
         />
 
         <ToggleSwitch
@@ -166,7 +166,7 @@ function UserSettingsUI() {
               useAutocompleteCache: !useAutocompleteCache,
             })
           }
-          text="Use Autocomplete Cache"
+          text="开启自动补全缓存"
         />
 
         <ToggleSwitch
@@ -176,11 +176,11 @@ function UserSettingsUI() {
               useChromiumForDocsCrawling: !useChromiumForDocsCrawling,
             })
           }
-          text="Use Chromium for Docs Crawling"
+          text="使用 Chromium 进行文档爬取"
         />
 
         <label className="flex items-center justify-between gap-3">
-          <span className="text-right">Codeblock Actions Position</span>
+          <span className="text-right">代码块操作按钮位置</span>
           <Select
             value={codeBlockToolbarPosition}
             onChange={(e) =>
@@ -189,13 +189,13 @@ function UserSettingsUI() {
               })
             }
           >
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
+            <option value="top">顶部</option>
+            <option value="bottom">底部</option>
           </Select>
         </label>
 
         <label className="flex items-center justify-between gap-3">
-          <span className="text-right">Multiline Autocompletions</span>
+          <span className="text-right">多行自动补全</span>
           <Select
             value={useAutocompleteMultilineCompletions}
             onChange={(e) =>
@@ -207,14 +207,14 @@ function UserSettingsUI() {
               })
             }
           >
-            <option value="auto">Auto</option>
-            <option value="always">Always</option>
-            <option value="never">Never</option>
+            <option value="auto">自动判断</option>
+            <option value="always">开启</option>
+            <option value="never">关闭</option>
           </Select>
         </label>
 
         <label className="flex items-center justify-between gap-3">
-          <span className="text-right">Font Size</span>
+          <span className="text-right">字号</span>
           <NumberInput
             value={fontSize}
             onChange={(val) =>
@@ -235,7 +235,7 @@ function UserSettingsUI() {
           }}
         >
           <div className="flex items-center justify-between">
-            <span>Workspace prompts path</span>
+            <span>工作区提示词路径</span>
             <div className="flex items-center gap-2">
               <Input
                 value={formPromptPath}
@@ -277,7 +277,7 @@ function UserSettingsUI() {
           }}
         >
           <div className="flex items-center justify-between">
-            <span>Disable autocomplete in files</span>
+            <span>在下列文件中禁用自动补全</span>
             <div className="flex items-center gap-2">
               <Input
                 value={formDisableAutocomplete}
@@ -311,7 +311,7 @@ function UserSettingsUI() {
             </div>
           </div>
           <span className="text-vsc-foreground-muted self-end text-xs">
-            Comma-separated list of path matchers
+            路径匹配器，以逗号分隔
           </span>
         </form>
       </div>

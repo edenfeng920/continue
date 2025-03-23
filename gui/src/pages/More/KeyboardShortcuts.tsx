@@ -78,69 +78,69 @@ const vscodeShortcuts: KeyboardShortcutProps[] = [
   {
     mac: "⌘ '",
     windows: "⌃ '",
-    description: "Toggle Selected Model",
+    description: "切换所选择的模型",
   },
   {
     mac: "⌘ I",
     windows: "⌃ I",
-    description: "Edit highlighted code",
+    description: "编辑高亮代码",
   },
   {
     mac: "⌘ L",
     windows: "⌃ L",
     description:
-      "New Chat / New Chat With Selected Code / Close Continue Sidebar If Chat Already In Focus",
+      "新建对话 / 添加所选代码到新建对话",
   },
   {
     mac: "⌘ ⌫",
     windows: "⌃ ⌫",
-    description: "Cancel response",
+    description: "取消响应",
   },
   {
     mac: "⌘ ⇧ I",
     windows: "⌃ ⇧ I",
-    description: "Toggle inline edit focus",
+    description: "切换行内编辑焦点",
   },
   {
     mac: "⌘ ⇧ L",
     windows: "⌃ ⇧ L",
     description:
-      "Focus Current Chat / Add Selected Code To Current Chat / Close Continue Sidebar If Chat Already In Focus",
+      "返回当前对话 / 添加所选代码到当前对话",
   },
   {
     mac: "⌘ ⇧ R",
     windows: "⌃ ⇧ R",
-    description: "Debug Terminal",
+    description: "调试终端",
   },
   {
     mac: "⌘ ⇧ ⌫",
     windows: "⌃ ⇧ ⌫",
-    description: "Reject Diff",
+    description: "变更全部拒绝",
   },
   {
     mac: "⌘ ⇧ ⏎",
     windows: "⌃ ⇧ ⏎",
-    description: "Accept Diff",
+    description: "变更全部接受",
   },
   {
     mac: "⌥ ⌘ N",
     windows: "Alt ⌃ N",
-    description: "Reject Top Change in Diff",
+    description: "变更逐个拒绝",
   },
   {
     mac: "⌥ ⌘ Y",
     windows: "Alt ⌃ Y",
-    description: "Accept Top Change in Diff",
+    description: "变更逐个接受",
   },
   {
     mac: "⌘ K ⌘ A",
     windows: "⌃ K ⌃ A",
-    description: "Toggle Autocomplete Enabled",
+    description: "启用 / 禁用自动补全",
   },
   {
     mac: "⌘ K ⌘ M",
     windows: "⌃ K ⌃ M",
-    description: "Toggle Full Screen",
+    description: "在新窗口中打开",
   },
 ];
 

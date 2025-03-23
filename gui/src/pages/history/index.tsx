@@ -8,7 +8,7 @@ export default function HistoryPage() {
 
   return (
     <div className="overflow-y-scroll" style={{ fontSize: getFontSize() }}>
-      <PageHeader onTitleClick={() => navigate("/")} title="Chat" />
+      <PageHeader onTitleClick={() => navigate("/")} title="返回对话" />
       <History />
     </div>
   );
