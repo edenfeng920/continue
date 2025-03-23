@@ -41,6 +41,8 @@ import { VsCodeMessenger } from "./VsCodeMessenger";
 
 import type { VsCodeWebviewProtocol } from "../webviewProtocol";
 
+import { subscribeToAuthChanges, isLoggedIn } from '../authStatus';
+
 export class VsCodeExtension {
   // Currently some of these are public so they can be used in testing (test/test-suites)
 
@@ -179,26 +181,6 @@ export class VsCodeExtension {
       },
     );
 
-    // Tab autocomplete
-    const config = vscode.workspace.getConfiguration(EXTENSION_NAME);
-    const enabled = config.get<boolean>("enableTabAutocomplete");
-
-    // Register inline completion provider
-    setupStatusBar(
-      enabled ? StatusBarStatus.Enabled : StatusBarStatus.Disabled,
-    );
-    context.subscriptions.push(
-      vscode.languages.registerInlineCompletionItemProvider(
-        [{ pattern: "**" }],
-        new ContinueCompletionProvider(
-          this.configHandler,
-          this.ide,
-          this.tabAutocompleteModel,
-          this.sidebar.webviewProtocol,
-        ),
-      ),
-    );
-
     // Battery
     this.battery = new Battery();
     context.subscriptions.push(this.battery);
@@ -221,20 +203,47 @@ export class VsCodeExtension {
       this.fileSearch,
     );
 
-    // Commands
-    registerAllCommands(
-      context,
-      this.ide,
-      context,
-      this.sidebar,
-      this.configHandler,
-      this.verticalDiffManager,
-      this.core.continueServerClientPromise,
-      this.battery,
-      quickEdit,
-      this.core,
-      this.editDecorationManager,
-    );
+    // 订阅 isLoggedIn 状态的变化，来决定是否开启相应功能
+    subscribeToAuthChanges(() => {
+      if (isLoggedIn) { 
+        
+        // 注册commands
+        registerAllCommands(
+          context,
+          this.ide,
+          context,
+          this.sidebar,
+          this.configHandler,
+          this.verticalDiffManager,
+          this.core.continueServerClientPromise,
+          this.battery,
+          quickEdit,
+          this.core,
+          this.editDecorationManager,
+        );
+        
+        // Tab autocomplete
+        const config = vscode.workspace.getConfiguration(EXTENSION_NAME);
+        const enabled = config.get<boolean>("enableTabAutocomplete");
+
+        // Register inline completion provider
+        setupStatusBar(
+          enabled ? StatusBarStatus.Enabled : StatusBarStatus.Disabled,
+        );
+        context.subscriptions.push(
+          vscode.languages.registerInlineCompletionItemProvider(
+            [{ pattern: "**" }],
+            new ContinueCompletionProvider(
+              this.configHandler,
+              this.ide,
+              this.tabAutocompleteModel,
+              this.sidebar.webviewProtocol,
+            ),
+          ),
+        );
+      }
+    });
+
 
     // Disabled due to performance issues
     // registerDebugTracker(this.sidebar.webviewProtocol, this.ide);

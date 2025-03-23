@@ -8,6 +8,8 @@ import { getExtensionVersion } from "./util/util";
 import { getExtensionUri, getNonce, getUniqueId } from "./util/vscode";
 import { VsCodeWebviewProtocol } from "./webviewProtocol";
 import type { FileEdit } from "core";
+import CryptoJS from 'crypto-js';
+import { isLoggedIn, login } from "./authStatus";
 
 export class ContinueGUIWebviewViewProvider
   implements vscode.WebviewViewProvider
@@ -17,7 +19,6 @@ export class ContinueGUIWebviewViewProvider
   public webviewProtocol: VsCodeWebviewProtocol;
   private _webview?: vscode.Webview;
   private _webviewView?: vscode.WebviewView;
-  private isLoggedIn = false;
   private loginMessageListener: vscode.Disposable | null = null;
 
   public get isReady(): boolean {
@@ -33,7 +34,7 @@ export class ContinueGUIWebviewViewProvider
     this._webview = webviewView.webview;
 
     // 如果没有登录，则显示登录页面，走登录流程
-    if (!this.isLoggedIn) {
+    if (!isLoggedIn) {
       this.showLoginPage(webviewView);
       this.loginMessageListener = this._webview.onDidReceiveMessage(
         async (message) => {
@@ -237,6 +238,19 @@ export class ContinueGUIWebviewViewProvider
   private async handleLogin(data: any) {
     const product_source = 'FZH_CS'; 
     const api_key = 'RPqltRBX7MRICFGKGKxk/w=='; 
+    
+    // // 加密
+    // const encryptedUsername = CryptoJS.AES.encrypt(data.username, api_key).toString();
+    // const encryptedPassword = CryptoJS.AES.encrypt(data.password, api_key).toString();
+    // const encryptedapikey = CryptoJS.AES.encrypt(api_key, api_key).toString();
+
+    // const fullData = {
+    //   username: encryptedUsername,
+    //   password: encryptedPassword,
+    //   api_key: encryptedapikey,
+    //   product_source
+    // };
+
     const fullData = {
       ...data,
       product_source,
@@ -262,7 +276,7 @@ export class ContinueGUIWebviewViewProvider
       });
       if (responseData.code === 200) {
         // 标记用户已登录
-        this.isLoggedIn = true;
+        login(); // 调用 authStatus.ts 中的 login 方法
         // 移除登录消息监听
         this.loginMessageListener?.dispose();
         this.loginMessageListener = null;
