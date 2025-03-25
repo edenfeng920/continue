@@ -12,9 +12,9 @@ import { persistor, store } from "./redux/store";
     <React.StrictMode>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
-          <CustomPostHogProvider>
+          {/* <CustomPostHogProvider> */}
             <App />
-          </CustomPostHogProvider>
+          {/* </CustomPostHogProvider> */}
         </PersistGate>
       </Provider>
     </React.StrictMode>,

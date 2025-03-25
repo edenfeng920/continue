@@ -89,7 +89,7 @@ const vscodeShortcuts: KeyboardShortcutProps[] = [
     mac: "⌘ L",
     windows: "⌃ L",
     description:
-      "新建对话 / 添加所选代码到新建对话",
+      "添加所选代码到新建对话",
   },
   {
     mac: "⌘ ⌫",
@@ -105,7 +105,7 @@ const vscodeShortcuts: KeyboardShortcutProps[] = [
     mac: "⌘ ⇧ L",
     windows: "⌃ ⇧ L",
     description:
-      "返回当前对话 / 添加所选代码到当前对话",
+      "添加所选代码到当前对话",
   },
   {
     mac: "⌘ ⇧ R",

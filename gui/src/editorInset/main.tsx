@@ -10,9 +10,9 @@ import EditorInset from "./EditorInset";
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <Provider store={store}>
-      <CustomPostHogProvider>
+      {/* <CustomPostHogProvider> */}
         <EditorInset />
-      </CustomPostHogProvider>
+      {/* </CustomPostHogProvider> */}
     </Provider>
   </React.StrictMode>,
 );

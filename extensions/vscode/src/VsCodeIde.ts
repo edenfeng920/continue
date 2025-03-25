@@ -663,13 +663,14 @@ class VsCodeIde implements IDE {
   async getIdeSettings(): Promise<IdeSettings> {
     const ideSettings = this.getIdeSettingsSync();
 
-    // Feature flag for when hub is enabled
-    if (ideSettings.continueTestEnvironment !== "production") {
-      const enableHub = await enableHubContinueDev();
-      if (enableHub) {
-        ideSettings.continueTestEnvironment = "production";
-      }
-    }
+    // 取消与continueapi的交互
+    // // Feature flag for when hub is enabled
+    // if (ideSettings.continueTestEnvironment !== "production") {
+    //   const enableHub = await enableHubContinueDev();
+    //   if (enableHub) {
+    //     ideSettings.continueTestEnvironment = "production";
+    //   }
+    // }
 
     return ideSettings;
   }
