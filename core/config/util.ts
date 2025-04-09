@@ -191,7 +191,7 @@ async function showUnsupportedCpuToast(ide: IDE) {
     "Learn more",
   );
 
-  if (shouldOpenLink) {
-    void ide.openUrl("https://github.com/continuedev/continue/pull/3551");
-  }
+  // if (shouldOpenLink) {
+  //   void ide.openUrl("https://github.com/continuedev/continue/pull/3551");
+  // }
 }

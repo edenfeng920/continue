@@ -198,7 +198,7 @@ const StreamErrorDialog = ({ error }: StreamErrorProps) => {
       ) : null}
       <div className="mt-3">{errorContent}</div>
 
-      <div className="mt-2 flex flex-col gap-1.5">
+      {/* <div className="mt-2 flex flex-col gap-1.5">
         <span>Report this error:</span>
         <div className="flex flex-row flex-wrap items-center gap-2">
           <SecondaryButton
@@ -230,7 +230,7 @@ const StreamErrorDialog = ({ error }: StreamErrorProps) => {
             Close
           </Button>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };

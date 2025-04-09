@@ -14,7 +14,7 @@ import { isLoggedIn, login } from "./authStatus";
 export class ContinueGUIWebviewViewProvider
   implements vscode.WebviewViewProvider
 {
-  //视图名称已在package中声明
+  // 视图名称已在package中声明
   public static readonly viewType = "continue.continueGUIView";
   public webviewProtocol: VsCodeWebviewProtocol;
   private _webview?: vscode.Webview;
@@ -47,9 +47,9 @@ export class ContinueGUIWebviewViewProvider
         this.extensionContext.subscriptions
       );
     } else {
-      webviewView.webview.html = this.getSidebarContent(
+      this._webviewView.webview.html = this.getSidebarContent(
         this.extensionContext,
-        webviewView,
+        this._webviewView
       );
     }
   }
@@ -206,7 +206,7 @@ export class ContinueGUIWebviewViewProvider
     </html>`;
   }
 
-  //登录页面的html在根目录下webview文件夹中
+  // 登录页面的html在根目录下webview文件夹中
   private showLoginPage(webviewView: vscode.WebviewView) {
     webviewView.webview.options = {
       enableScripts: true,
@@ -234,75 +234,94 @@ export class ContinueGUIWebviewViewProvider
     return htmlContent;
   }
 
-  //登录页面通过插件与服务端通信
-  private async handleLogin(data: any) {
+  // 登录页面通过插件与服务端通信
+  private async handleLogin(data: any, maxRetries = 3) {
     const product_source = 'FZH_CS'; 
     const api_key = 'RPqltRBX7MRICFGKGKxk/w=='; 
     
-    // // 加密
-    // const encryptedUsername = CryptoJS.AES.encrypt(data.username, api_key).toString();
-    // const encryptedPassword = CryptoJS.AES.encrypt(data.password, api_key).toString();
-    // const encryptedapikey = CryptoJS.AES.encrypt(api_key, api_key).toString();
-
-    // const fullData = {
-    //   username: encryptedUsername,
-    //   password: encryptedPassword,
-    //   api_key: encryptedapikey,
-    //   product_source
-    // };
+    // 加密
+    const encryptedUsername = CryptoJS.AES.encrypt(data.user_id, CryptoJS.enc.Utf8.parse(api_key), {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7
+  }).toString();
+    const encryptedPassword = CryptoJS.AES.encrypt(data.password, CryptoJS.enc.Utf8.parse(api_key), {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7
+  }).toString();
+    const encryptedapikey = CryptoJS.AES.encrypt(api_key, CryptoJS.enc.Utf8.parse(api_key), {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7
+  }).toString();
 
     const fullData = {
-      ...data,
-      product_source,
-      api_key
+      user_id: encryptedUsername,
+      password: encryptedPassword,
+      api_key: encryptedapikey,
+      product_source
     };
 
-    try {
-      const response = await axios.post(
-        'http://10.29.180.154:8777/api/ext_doc_qa/ext_user_check',
-        fullData,
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          timeout: 5000 
-        }
-      );
-      const responseData = response.data;
-      // 将登录结果发送给 Webview
-      this._webview?.postMessage({
-        command: 'loginResult',
-        data: responseData
-      });
-      if (responseData.code === 200) {
-        // 标记用户已登录
-        login(); // 调用 authStatus.ts 中的 login 方法
-        // 移除登录消息监听
-        this.loginMessageListener?.dispose();
-        this.loginMessageListener = null;
-        // 登录成功，显示后续页面
-        if (this._webviewView) {
-          this._webviewView.webview.html = this.getSidebarContent(
-            this.extensionContext,
-            this._webviewView
-          );
-        }
-        console.log('登录成功');
-      } else {
-        // 登录失败，继续监听下次输入
-        console.log('登录失败，继续等待输入');
-        vscode.window.showErrorMessage(`登录失败: ${responseData.msg}`);
+    // 增加重试机制
+    let retries = 0;
+    while (retries < maxRetries) {
+        try {
+            const response = await axios.post(
+                //  测试环境
+                'http://10.29.180.154:8100/api/ext_doc_qa/ext_user_check',
+                //  开发环境
+                // 'http://10.49.87.67:8100/api/ext_doc_qa/ext_user_check',
+                fullData,
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 5000 
+                }
+            );
+
+            const responseData = response.data;
+            // 将登录结果发送给 Webview
+            this._webview?.postMessage({
+                command: 'loginResult',
+                data: responseData
+            });
+            if (responseData.code === 200) {
+                // 标记用户已登录
+                login(data.user_id); // 调用 authStatus.ts 中的 login 方法
+                // 移除登录消息监听
+                this.loginMessageListener?.dispose();
+                this.loginMessageListener = null;
+                // 登录成功，显示后续页面
+                if (this._webviewView) {
+                    this._webviewView.webview.html = this.getSidebarContent(
+                        this.extensionContext,
+                        this._webviewView
+                    );
+                }
+                console.log('登录成功');
+            } else {
+                // 登录失败，继续监听下次输入
+                console.log('登录失败，继续等待输入');
+                vscode.window.showErrorMessage(`登录失败: ${responseData.msg}`);
+            }
+            return;
+        } catch (error) {
+            if (error.code === 'ECONNRESET' && retries < maxRetries-1) {
+                retries++;
+                console.log(`请求失败，正在进行第 ${retries} 次重试...`);
+            } else {
+                console.error('Error message:', error.message);
+                
+                this._webview?.postMessage({
+                    command: 'loginResult',
+                    data: {
+                        code: 500,
+                        msg: '登录失败，请稍后再试'
+                    }
+                });
+                vscode.window.showErrorMessage('登录失败，请稍后再试');
+                return;
+              }
+          }
       }
-    } catch (error) {
-      console.error('Error during login:', error);
-      this._webview?.postMessage({
-        command: 'loginResult',
-        data: {
-          code: 500,
-          msg: '登录失败，请稍后再试'
-        }
-      });
-      vscode.window.showErrorMessage('登录失败，请稍后再试');
-    }
   }
 }

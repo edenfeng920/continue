@@ -1,57 +1,26 @@
-<div align="center">
-
-![Continue logo](media/readme.png)
-
 </div>
 
-<h1 align="center">Continue</h1>
-
-<div align="center">
-
-**[Continue](https://docs.continue.dev) is the leading open-source AI code assistant. You can connect any models and any context to build custom autocomplete and chat experiences inside [VS Code](https://marketplace.visualstudio.com/items?itemName=Continue.continue) and [JetBrains](https://plugins.jetbrains.com/plugin/22707-continue-extension)**
-
-</div>
-
-<div align="center">
-
-<a target="_blank" href="https://opensource.org/licenses/Apache-2.0" style="background:none">
-    <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" style="height: 22px;" />
-</a>
-<a target="_blank" href="https://docs.continue.dev" style="background:none">
-    <img src="https://img.shields.io/badge/continue_docs-%23BE1B55" style="height: 22px;" />
-</a>
-<a target="_blank" href="https://discord.gg/vapESyrFmJ" style="background:none">
-    <img src="https://img.shields.io/badge/discord-join-continue.svg?labelColor=191937&color=6F6FF7&logo=discord" style="height: 22px;" />
-</a>
+<h1 align="center">仓颉智码</h1>
 
 <p></p>
 
-## Chat
+## 智能问答
 
-[Chat](https://continue.dev/docs/chat/how-to-use-it) makes it easy to ask for help from an LLM without needing to leave the IDE
+您可以更方便地在IDE内直接与大模型开展交互。
 
-![chat](docs/static/img/chat.gif)
+![智能问答](docs/static/img/chat.gif)
 
-## Autocomplete
+## 自动补全
 
-[Autocomplete](https://continue.dev/docs/autocomplete/how-to-use-it) provides inline code suggestions as you type
+依据已有的代码情况，自动生成后续代码，实现当前行的补全或者生成后续若干行代码。
 
-![autocomplete](docs/static/img/autocomplete.gif)
+![自动补全](docs/static/img/autocomplete.gif)
 
-## Edit
+## 代码编辑
 
-[Edit](https://continue.dev/docs/edit/how-to-use-it) is a convenient way to modify code without leaving your current file
+选中一段代码，并描述期望调整的具体内容，仓颉智码将自动完成相应代码的修改工作。
 
-![edit](docs/static/img/edit.gif)
-
-## Actions
-
-[Actions](https://continue.dev/docs/actions/how-to-use-it) are shortcuts for common use cases.
-
-![actions](docs/static/img/actions.gif)
+![代码编辑](docs/static/img/edit.gif)
 
 </div>
 
-## License
-
-[Apache 2.0 © 2023-2024 Continue Dev, Inc.](./LICENSE)

@@ -9,10 +9,12 @@ import { IdeType, SerializedContinueConfig } from "../";
 import { defaultConfig, defaultConfigJetBrains } from "../config/default";
 import Types from "../config/types";
 
+import * as vscode from 'vscode';
+
 dotenv.config();
 
 const CONTINUE_GLOBAL_DIR =
-  process.env.CONTINUE_GLOBAL_DIR ?? path.join(os.homedir(), ".continue");
+  process.env.CONTINUE_GLOBAL_DIR ?? path.join(os.homedir(), ".ztscontinue");
 
 // export const DEFAULT_CONFIG_TS_CONTENTS = `import { Config } from "./types"\n\nexport function modifyConfig(config: Config): Config {
 //   return config;
@@ -46,7 +48,7 @@ export function getGlobalContinueIgnorePath(): string {
 }
 
 export function getContinueGlobalPath(): string {
-  // This is ~/.continue on mac/linux
+  // This is ~/.ztscontinue on mac/linux
   const continuePath = CONTINUE_GLOBAL_DIR;
   if (!fs.existsSync(continuePath)) {
     fs.mkdirSync(continuePath);
@@ -90,13 +92,50 @@ export function getSessionsListPath(): string {
   return filepath;
 }
 
+// 获取当前插件版本号
+function getCurrentPluginVersion(): string {
+  const extension = vscode.extensions.getExtension('zts.continue');
+  if (!extension) {
+      throw new Error('无法获取插件信息');
+  }
+  const packageJsonPath = path.join(extension.extensionPath, 'package.json');
+  const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8');
+  const packageJson = JSON.parse(packageJsonContent);
+  return packageJson.version;
+}
+
+// 检查是否是新安装或版本更新
+function isNewInstallationOrUpdate(): boolean {
+  const versionFilePath = path.join(getContinueGlobalPath(), '.plugin_version');
+  const currentVersion = getCurrentPluginVersion();
+
+  if (!fs.existsSync(versionFilePath)) {
+      return true;
+  }
+
+  const previousVersion = fs.readFileSync(versionFilePath, 'utf8');
+  return previousVersion !== currentVersion;
+}
+
+// 标记当前插件版本
+function markCurrentPluginVersion() {
+  const versionFilePath = path.join(getContinueGlobalPath(), '.plugin_version');
+  const currentVersion = getCurrentPluginVersion();
+  fs.writeFileSync(versionFilePath, currentVersion);
+}
+
 export function getConfigJsonPath(ideType: IdeType = "vscode"): string {
   const p = path.join(getContinueGlobalPath(), "config.json");
-  if (!fs.existsSync(p)) {
+  const isNewInstallOrUpdate = isNewInstallationOrUpdate();
+
+  if (!fs.existsSync(p) || isNewInstallOrUpdate) {
     if (ideType === "jetbrains") {
       fs.writeFileSync(p, JSON.stringify(defaultConfigJetBrains, null, 2));
     } else {
       fs.writeFileSync(p, JSON.stringify(defaultConfig, null, 2));
+    }
+    if (isNewInstallOrUpdate) {
+      markCurrentPluginVersion();
     }
   }
   return p;

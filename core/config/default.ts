@@ -85,29 +85,24 @@ export const defaultConfig: SerializedContinueConfig = {
       "provider": "openai",
       "model": "CharAI-32B",
       "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
-      "apiBase": "http://10.49.24.61:8777/v1"
+      "apiBase": "http://10.29.180.154:8100/v1",
+      "systemMessage": "你是代码专家，你给出的回复简洁有效"
     },
     {
-      "title": "DeepSeek-R1",
+      "title": "DeepSeek-V3",
       "provider": "openai",
-      "model": "DeepSeek-R1",
-      "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
-      "apiBase": "http://10.49.24.61:8777/v1"
-    },
-    {
-      "title": "Qwen2.5-Coder-7B",
-      "provider": "openai",
-      "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "model": "deepseek-ai/DeepSeek-V3",
       "apiKey": "sk-rjkckqessvzknlithpveozwctlfuizevzsutmqipcklinizm",
-      "apiBase": "https://api.siliconflow.cn/v1"
+      "apiBase": "https://api.siliconflow.cn/v1",
+      "systemMessage": "你是代码专家，你给出的回复简洁有效"
     }
   ],
   "tabAutocompleteModel": {
-    "title": "Qwen2.5-Coder-7B",
+    "title": "Qwen2.5-Coder-14B",
     "provider": "openai",
-    "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
-    "apiKey": "sk-rjkckqessvzknlithpveozwctlfuizevzsutmqipcklinizm",
-    "apiBase": "https://api.siliconflow.cn/v1"
+    "model": "Qwen2.5-Coder-14B",
+    "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+    "apiBase": "http://10.29.180.154:8100/v1"
   },
   contextProviders: defaultContextProvidersVsCode,
   slashCommands: defaultSlashCommandsVscode,

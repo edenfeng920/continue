@@ -1,21 +1,15 @@
 {
   "name": "continue",
   "icon": "media/icon.png",
-  "version": "0.9.270",
+  "version": "0.9.282",
   "repository": {
     "type": "git",
-    "url": "https://github.com/continuedev/continue"
+    "url": "https://github.com/edenfeng920/continue"
   },
   "extensionKind": [
     "ui",
     "workspace"
   ],
-  "bugs": {
-    "url": "https://github.com/continuedev/continue/issues",
-    "email": "nate@continue.dev"
-  },
-  "homepage": "https://continue.dev",
-  "qna": "https://github.com/continuedev/continue/issues/new/choose",
   "license": "Apache-2.0",
   "displayName": "仓颉智码",
   "pricing": "Free",
@@ -87,7 +81,7 @@
       "properties": {
         "continue.telemetryEnabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Continue collects anonymous usage data, cleaned of PII, to help us improve the product for our users. Read more  at [continue.dev › Telemetry](https://docs.continue.dev/telemetry)."
         },
         "continue.enableContinueForTeams": {

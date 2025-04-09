@@ -55,3 +55,6 @@ export function deactivate() {
 
   Telemetry.shutdownPosthogClient();
 }
+
+// 创建第二个输出通道
+export const outputChannel2 = vscode.window.createOutputChannel('Continue - Console');
