@@ -352,7 +352,7 @@ function ModelSelect() {
 
             {selectedProfile?.id === "local" && (
               <>
-                <StyledListboxOption
+                {/* <StyledListboxOption
                   key={options.length}
                   onClick={onClickAddModel}
                   value={"addModel" as any}
@@ -361,7 +361,7 @@ function ModelSelect() {
                     <PlusIcon className="mr-2 h-4 w-4" />
                     Add Chat model
                   </div>
-                </StyledListboxOption>
+                </StyledListboxOption> */}
               </>
             )}
 

@@ -192,6 +192,12 @@
         "group": "Continue"
       },
       {
+        "command": "continue.explainCode",
+        "category": "Continue",
+        "title": "解释代码",
+        "group": "Continue"
+      },
+      {
         "command": "continue.debugTerminal",
         "category": "Continue",
         "title": "调试终端",
@@ -454,6 +460,11 @@
       "continue.continueSubMenu": [
         {
           "command": "continue.focusContinueInputWithoutClear",
+          "group": "Continue",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "continue.explainCode",
           "group": "Continue",
           "when": "editorHasSelection"
         },

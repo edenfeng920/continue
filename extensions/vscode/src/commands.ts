@@ -150,12 +150,21 @@ function getRangeInFileWithContents(
 
 async function addHighlightedCodeToContext(
   webviewProtocol: VsCodeWebviewProtocol | undefined,
+  prompt?: string,
 ) {
   const rangeInFileWithContents = getRangeInFileWithContents();
   if (rangeInFileWithContents) {
-    webviewProtocol?.request("highlightedCode", {
-      rangeInFileWithContents,
-    });
+    if (prompt) {
+      webviewProtocol?.request("highlightedCode", {
+        rangeInFileWithContents,
+        prompt,
+        shouldRun: true,
+      });
+    } else {
+      webviewProtocol?.request("highlightedCode", {
+        rangeInFileWithContents,
+      });
+    }
   }
 }
 
@@ -395,7 +404,7 @@ const getCommandsMap: (
     ) => {
       captureCommandTelemetry("quickFix");
 
-      const prompt = `Please explain the cause of this error and how to solve it: ${diagnosticMessage}`;
+      const prompt = `请解释此问题的原因以及如何修复: ${diagnosticMessage}`;
 
       addCodeToContextFromRange(range, sidebar.webviewProtocol, prompt);
 
@@ -509,6 +518,42 @@ const getCommandsMap: (
         );
 
         void addHighlightedCodeToContext(sidebar.webviewProtocol);
+      }
+    },
+    // 增加代码解释的命令
+    "continue.explainCode": async () => {
+      const isContinueInputFocused = await sidebar.webviewProtocol.request(
+        "isContinueInputFocused",
+        undefined,
+        false,
+      );
+
+      captureCommandTelemetry("explainCode");
+      const prompt = `请详细解释这段代码的作用和逻辑`;
+
+      // This is a temporary fix—sidebar.webviewProtocol.request is blocking
+      // when the GUI hasn't yet been setup and we should instead be
+      // immediately throwing an error, or returning a Result object
+      focusGUI();
+      if (!sidebar.isReady) {
+        const isReady = await waitForSidebarReady(sidebar, 5000, 100);
+        if (!isReady) {
+          return;
+        }
+      }
+
+      if (isContinueInputFocused) {
+        hideGUI();
+      } else {
+        focusGUI();
+
+        sidebar.webviewProtocol?.request(
+          "focusContinueInputWithoutClear",
+          undefined,
+        );
+
+        void addHighlightedCodeToContext(sidebar.webviewProtocol,prompt);
+        vscode.commands.executeCommand("continue.continueGUIView.focus");
       }
     },
     // QuickEditShowParams are passed from CodeLens, temp fix
@@ -922,15 +967,15 @@ const getCommandsMap: (
         {
           label: quickPickStatusText(targetStatus),
         },
-        {
-          label: "$(gear) 自动补全配置",
-        },
-        {
-          label: "$(feedback) 提供反馈",
-        },
+        // {
+        //   label: "$(gear) 自动补全配置",
+        // },
+        // {
+        //   label: "$(feedback) 提供反馈",
+        // },
         {
           kind: vscode.QuickPickItemKind.Separator,
-          label: "切换大模型",
+          label: "",
         },
         ...autocompleteModels.map((model) => ({
           label: getAutocompleteStatusBarTitle(selected, model),
@@ -949,11 +994,11 @@ const getCommandsMap: (
             targetStatus === StatusBarStatus.Enabled,
             vscode.ConfigurationTarget.Global,
           );
-        } else if (
+        } /*else if (
           selectedOption === "$(gear) 自动补全配置"
         ) {
           ide.openFile(vscode.Uri.file(getConfigJsonPath()).toString());
-        } else if (
+        }*/ else if (
           autocompleteModels.some((model) => model.title === selectedOption)
         ) {
           new GlobalContext().update(
@@ -961,9 +1006,9 @@ const getCommandsMap: (
             selectedOption,
           );
           configHandler.reloadConfig();
-        } else if (selectedOption === "$(feedback) 提供反馈") {
+        } /*else if (selectedOption === "$(feedback) 提供反馈") {
           vscode.commands.executeCommand("continue.giveAutocompleteFeedback");
-        } else if (selectedOption === "$(comment) 发起对话 (Cmd+L)") {
+        } */ else if (selectedOption === "$(comment) 发起对话 (Cmd+L)") {
           vscode.commands.executeCommand("continue.focusContinueInput");
         } else if (
           selectedOption ===

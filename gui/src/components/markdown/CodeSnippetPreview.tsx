@@ -132,7 +132,7 @@ function CodeSnippetPreview(props: CodeSnippetPreviewProps) {
           {props.item.name}
         </div>
         <div className="flex items-center gap-1">
-          <HeaderButtonWithToolTip text={hidden ? "Show" : "Hide"}>
+          <HeaderButtonWithToolTip text={hidden ? "展示" : "隐藏"}>
             {hidden ? (
               <EyeIcon width="1em" height="1em" />
             ) : (
@@ -140,7 +140,7 @@ function CodeSnippetPreview(props: CodeSnippetPreviewProps) {
             )}
           </HeaderButtonWithToolTip>
           <HeaderButtonWithToolTip
-            text="Delete"
+            text="删除"
             onClick={(e) => {
               e.stopPropagation();
               props.onDelete?.();

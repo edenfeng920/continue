@@ -19,7 +19,7 @@ class ContinueQuickFixProvider implements vscode.CodeActionProvider {
     const diagnostic = context.diagnostics[0];
 
     const quickFix = new vscode.CodeAction(
-      "Ask Continue",
+      "使用 仓颉智码 解释",
       vscode.CodeActionKind.QuickFix,
     );
 

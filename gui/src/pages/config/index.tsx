@@ -58,7 +58,7 @@ function ConfigPage() {
 
       <div className="divide-x-0 divide-y-2 divide-solid divide-zinc-700 px-4">
 
-        <div className="flex flex-col">
+        {/* <div className="flex flex-col">
           <div className="flex max-w-[400px] flex-col gap-4 py-6">
             <h2 className="mb-1 mt-0">大模型配置</h2>
             {profiles ? (
@@ -137,7 +137,7 @@ function ConfigPage() {
               <div>Loading...</div>
             )}
           </div>
-        </div>
+        </div> */}
         {!controlServerBetaEnabled || hubEnabled ? (
           <div className="flex flex-col">
             <div className="flex max-w-[400px] flex-col">
