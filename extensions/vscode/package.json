@@ -1,7 +1,7 @@
 {
   "name": "continue",
   "icon": "media/icon.png",
-  "version": "0.9.282",
+  "version": "0.9.283",
   "repository": {
     "type": "git",
     "url": "https://github.com/edenfeng920/continue"
@@ -195,6 +195,12 @@
         "command": "continue.explainCode",
         "category": "Continue",
         "title": "解释代码",
+        "group": "Continue"
+      },
+      {
+        "command": "continue.testCase",
+        "category": "Continue",
+        "title": "生成单测",
         "group": "Continue"
       },
       {
@@ -470,6 +476,11 @@
         },
         {
           "command": "continue.writeCommentsForCode",
+          "group": "Continue",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "continue.testCase",
           "group": "Continue",
           "when": "editorHasSelection"
         },

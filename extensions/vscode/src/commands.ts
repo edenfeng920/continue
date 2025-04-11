@@ -556,6 +556,42 @@ const getCommandsMap: (
         vscode.commands.executeCommand("continue.continueGUIView.focus");
       }
     },
+    // 增加生成单元测试用例的命令
+    "continue.testCase": async () => {
+      const isContinueInputFocused = await sidebar.webviewProtocol.request(
+        "isContinueInputFocused",
+        undefined,
+        false,
+      );
+
+      captureCommandTelemetry("testCase");
+      const prompt = `生成直接可用的测试用例，要求详尽无遗漏，覆盖各类正常情况、边界情况和异常情况。`;
+
+      // This is a temporary fix—sidebar.webviewProtocol.request is blocking
+      // when the GUI hasn't yet been setup and we should instead be
+      // immediately throwing an error, or returning a Result object
+      focusGUI();
+      if (!sidebar.isReady) {
+        const isReady = await waitForSidebarReady(sidebar, 5000, 100);
+        if (!isReady) {
+          return;
+        }
+      }
+
+      if (isContinueInputFocused) {
+        hideGUI();
+      } else {
+        focusGUI();
+
+        sidebar.webviewProtocol?.request(
+          "focusContinueInputWithoutClear",
+          undefined,
+        );
+
+        void addHighlightedCodeToContext(sidebar.webviewProtocol,prompt);
+        vscode.commands.executeCommand("continue.continueGUIView.focus");
+      }
+    },
     // QuickEditShowParams are passed from CodeLens, temp fix
     // until we update to new params specific to Edit
     "continue.focusEdit": async (args?: QuickEditShowParams) => {

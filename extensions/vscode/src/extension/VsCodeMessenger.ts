@@ -282,6 +282,37 @@ export class VsCodeMessenger {
         );
       });
     });
+
+      // 创建一个新的编辑器页面
+    this.onWebview("insertAtNewpage", async (msg) => {
+        let lang = msg.data.lang || "plaintext";
+        if (lang === "js") {
+            lang = "javascript";
+        } else if (lang === "ts") {
+            lang = "typescript";
+        } else if (lang === "py") {
+            lang = "python";
+        } else if (lang === "kt") {
+            lang = "kotlin";
+        } else if (lang === "rb") {
+            lang = "ruby";
+        } else if (lang === "rs") {
+            lang = "rust";
+        } else if (lang === "sh") {
+            lang = "bash";
+        } else if (lang === "md") {
+            lang = "markdown";
+        } else if (lang === "tsx") {
+            lang = "typescript";
+        }
+        const newDocument = await vscode.workspace.openTextDocument({
+        language: lang,
+        content: msg.data.text,
+      });
+      // 显示新的编辑器页面
+      vscode.window.showTextDocument(newDocument);
+    });
+
     this.onWebview("edit/sendPrompt", async (msg) => {
       const prompt = msg.data.prompt;
       const { start, end } = msg.data.range.range;

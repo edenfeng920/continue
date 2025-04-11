@@ -3,6 +3,7 @@ import {
   CommandLineIcon,
   PlayIcon,
   ArrowLeftEndOnRectangleIcon,
+  DocumentIcon,
 } from "@heroicons/react/24/outline";
 import { defaultBorderRadius, vscEditorBackground } from "..";
 import { IdeMessengerContext } from "../../context/IdeMessenger";
@@ -121,6 +122,20 @@ export default function StepContainerPreActionButtons({
             tooltipPlacement={toolTipPlacement}
           >
             <ArrowLeftEndOnRectangleIcon className="h-4 w-4 text-gray-400" />
+          </HeaderButtonWithToolTip>
+          <HeaderButtonWithToolTip
+            text="新页面"
+            style={{ backgroundColor: vscEditorBackground }}
+            onClick={() =>{
+              if(language){
+                ideMessenger.post("insertAtNewpage", { text: codeBlockContent, lang:language })
+              }else{
+                ideMessenger.post("insertAtNewpage", { text: codeBlockContent })
+              }
+            }}
+            tooltipPlacement={toolTipPlacement}
+          >
+            <DocumentIcon className="h-4 w-4 text-gray-400" />
           </HeaderButtonWithToolTip>
           <CopyIconButton
             text={codeBlockContent}
