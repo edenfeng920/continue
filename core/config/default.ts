@@ -91,9 +91,9 @@ export const defaultConfig: SerializedContinueConfig = {
     {
       "title": "DeepSeek-V3",
       "provider": "openai",
-      "model": "deepseek-ai/DeepSeek-V3",
-      "apiKey": "sk-rjkckqessvzknlithpveozwctlfuizevzsutmqipcklinizm",
-      "apiBase": "https://api.siliconflow.cn/v1",
+      "model": "DeepSeek-V3-doubao",
+      "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+      "apiBase": "http://10.29.180.154:8100/v1",
       "systemMessage": "你是代码专家，你给出的回复简洁有效"
     }
   ],

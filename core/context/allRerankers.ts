@@ -5,6 +5,7 @@ import HuggingFaceTEI from "../llm/llms/HuggingFaceTEI";
 import { LLMReranker } from "../llm/llms/llm";
 import ContinueProxy from "../llm/llms/stubs/ContinueProxy";
 import Voyage from "../llm/llms/Voyage";
+import Cangjie from "../llm/llms/Cangjie";
 
 export const AllRerankers: { [key: string]: any } = {
   cohere: Cohere,
@@ -14,4 +15,5 @@ export const AllRerankers: { [key: string]: any } = {
   "free-trial": FreeTrial,
   "huggingface-tei": HuggingFaceTEI,
   "continue-proxy": ContinueProxy,
+  Cangjie: Cangjie,
 };

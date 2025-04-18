@@ -46,10 +46,14 @@ export default class BaseRetrievalPipeline implements IRetrievalPipeline {
     let text = nlp.string.removeExtraSpaces(query);
     text = nlp.string.stem(text);
 
-    let tokens = nlp.string
-      .tokenize(text, true)
-      .filter((token: any) => token.tag === "word")
-      .map((token: any) => token.value);
+    // let tokens = nlp.string
+    //   .tokenize(text, true)
+    //   .filter((token: any) => token.tag === "word")
+    //   .map((token: any) => token.value);
+
+    let tokens = nlp.string.tokenize(text, true);
+    tokens = tokens.filter((token: any) => token.tag === "word");
+    tokens = tokens.map((token: any) => token.value);
 
     tokens = nlp.tokens.removeWords(tokens);
     tokens = nlp.tokens.setOfWords(tokens);

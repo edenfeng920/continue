@@ -102,7 +102,7 @@ export function AssistantSelectOptions({
           style={{ color: lightGray, fontSize: getFontSize() - 4 }}
         >
           <span className="block">
-            <code>{getMetaKeyLabel()} ⇧ '</code> to toggle
+            <code>{getMetaKeyLabel()} ⇧ '</code> 切换模型
           </span>
           <div
             className="flex items-center gap-1"

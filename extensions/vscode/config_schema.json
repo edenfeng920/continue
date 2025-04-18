@@ -2858,7 +2858,8 @@
                 "voyage",
                 "llm",
                 "free-trial",
-                "huggingface-tei"
+                "huggingface-tei",
+                "Cangjie"
               ]
             },
             "params": {
