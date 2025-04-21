@@ -1,11 +1,20 @@
 // @ts-ignore
 import nlp from "wink-nlp-utils";
+// 添加中文分词器
+import Segment from 'segment';
 
 import { BranchAndDir, Chunk, ContinueConfig, IDE, ILLM } from "../../../";
 import { chunkDocument } from "../../../indexing/chunk/chunk";
 import { FullTextSearchCodebaseIndex } from "../../../indexing/FullTextSearchCodebaseIndex";
 import { LanceDbIndex } from "../../../indexing/LanceDbIndex";
 import { recentlyEditedFilesCache } from "../recentlyEditedFilesCache";
+
+// 创建 Segment 实例
+const segment = new Segment();
+
+// 使用默认的识别模块及字典,注意字典文件需保存至extensions\vscode\segment目录下
+segment.useDefault();
+segment.loadStopwordDict('stopword.txt');
 
 export interface RetrievalPipelineOptions {
   llm: ILLM;
@@ -44,18 +53,26 @@ export default class BaseRetrievalPipeline implements IRetrievalPipeline {
     query: RetrievalPipelineRunArguments["query"],
   ): string[] {
     let text = nlp.string.removeExtraSpaces(query);
-    text = nlp.string.stem(text);
-
-    // let tokens = nlp.string
-    //   .tokenize(text, true)
-    //   .filter((token: any) => token.tag === "word")
-    //   .map((token: any) => token.value);
-
-    let tokens = nlp.string.tokenize(text, true);
-    tokens = tokens.filter((token: any) => token.tag === "word");
-    tokens = tokens.map((token: any) => token.value);
-
+    let tokens: string[] = [];
+    
+    //判断query中是否包含中文
+    const hasChinese = /[\u4e00-\u9fa5]/.test(text);
+    if (hasChinese) {
+      tokens = segment.doSegment(text, {
+        stripPunctuation: true,
+        stripStopword: true,
+        simple: true
+      });
+    } else {
+      text = nlp.string.stem(text);
+      tokens = nlp.string.tokenize(text, true)
+       .filter((token: any) => token.tag === "word")
+       .map((token: any) => token.value);
+    }
+    
+    // 去除英文停用词
     tokens = nlp.tokens.removeWords(tokens);
+    // 去除重复词
     tokens = nlp.tokens.setOfWords(tokens);
 
     const cleanedTokens = [...tokens].join(" ");

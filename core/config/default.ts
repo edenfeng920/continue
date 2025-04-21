@@ -104,6 +104,20 @@ export const defaultConfig: SerializedContinueConfig = {
     "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
     "apiBase": "http://10.29.180.154:8100/v1"
   },
+  "embeddingsProvider": {
+    "provider": "openai",
+    "model": "bce-embedding",
+    "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+    "apiBase": "http://10.29.180.154:8100/v1"
+  },
+  "reranker": {
+    "name": "Cangjie",
+    "params": {
+        "model": "bge-reranker",
+        "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+        "apiBase": "http://10.29.180.154:8100/v1"
+    }
+  },
   contextProviders: defaultContextProvidersVsCode,
   slashCommands: defaultSlashCommandsVscode,
 };

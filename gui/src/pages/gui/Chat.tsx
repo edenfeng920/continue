@@ -299,11 +299,12 @@ export function Chat() {
       const currentCount = getLocalStorage("mainTextEntryCounter");
       if (currentCount) {
         setLocalStorage("mainTextEntryCounter", currentCount + 1);
-        if (currentCount === 300) {
-          dispatch(setDialogMessage(<FeedbackDialog />));
-          dispatch(setDialogEntryOn(false));
-          dispatch(setShowDialog(true));
-        }
+        // 取消提示
+        // if (currentCount === 300) {
+        //   dispatch(setDialogMessage(<FeedbackDialog />));
+        //   dispatch(setDialogEntryOn(false));
+        //   dispatch(setShowDialog(true));
+        // }
       } else {
         setLocalStorage("mainTextEntryCounter", 1);
       }
