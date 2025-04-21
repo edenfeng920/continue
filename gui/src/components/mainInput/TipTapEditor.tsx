@@ -545,7 +545,8 @@ function TipTapEditor(props: TipTapEditorProps) {
       },
     },
     content: props.editorState,
-    editable: !isStreaming || props.isMainInput,
+    //editable: !isStreaming || props.isMainInput,
+    editable: props.isMainInput,
   });
 
   const [shouldHideToolbar, setShouldHideToolbar] = useState(false);
@@ -1009,7 +1010,8 @@ function TipTapEditor(props: TipTapEditorProps) {
               }
             });
           }}
-          disabled={isStreaming}
+          //disabled={isStreaming}
+          disabled={isStreaming || !props.isMainInput}
         />
       </div>
 

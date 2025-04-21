@@ -57,7 +57,7 @@ const EnterButton = styled.button`
   cursor: pointer;
 
   :disabled {
-    cursor: wait;
+    cursor: text;
   }
 `;
 
@@ -90,7 +90,7 @@ function InputToolbar(props: InputToolbarProps) {
   const isInEditMode = useAppSelector(selectIsInEditMode);
   const hasCodeToEdit = useAppSelector(selectHasCodeToEdit);
   const isEditModeAndNoCodeToEdit = isInEditMode && !hasCodeToEdit;
-  const isEnterDisabled = props.disabled || isEditModeAndNoCodeToEdit;
+  const isDisabled = props.disabled || isEditModeAndNoCodeToEdit;
   const toolsSupported =
     defaultModel &&
     modelSupportsTools(defaultModel) &&
@@ -114,7 +114,7 @@ function InputToolbar(props: InputToolbarProps) {
         className="find-widget-skip flex"
       >
         <div className="flex items-center justify-start gap-2 whitespace-nowrap">
-          <ModelSelect />
+          <ModelSelect disabled={isDisabled}/>
           <div className="xs:flex -mb-1 hidden items-center text-gray-400 transition-colors duration-200">
             {props.toolbarOptions?.hideImageUpload ||
               (supportsImages && (
@@ -146,7 +146,12 @@ function InputToolbar(props: InputToolbarProps) {
                 </>
               ))}
             {props.toolbarOptions?.hideAddContext || (
-              <HoverItem onClick={props.onAddContextItem}>
+              // <HoverItem onClick={props.onAddContextItem}>
+              // 对于已提交的输入内容，禁用编辑和修改功能
+              <HoverItem 
+                onClick={!isDisabled ? props.onAddContextItem : undefined}
+                disabled={isDisabled}
+              >
                 <AtSymbolIcon
                   data-tooltip-id="add-context-item-tooltip"
                   className="h-4 w-4 hover:brightness-125"
@@ -221,7 +226,7 @@ function InputToolbar(props: InputToolbarProps) {
                 });
               }
             }}
-            disabled={isEnterDisabled}
+            disabled={isDisabled}
           >
             <span className="hidden md:inline">
               ⏎ {props.toolbarOptions?.enterText ?? "Enter"}

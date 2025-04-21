@@ -42,13 +42,13 @@ interface Option {
 
 const MAX_HEIGHT_PX = 300;
 
-const StyledListboxButton = styled(Listbox.Button)`
+const StyledListboxButton = styled(Listbox.Button)<{ $disabled?: boolean }>`
   font-family: inherit;
   display: flex;
   align-items: center;
   gap: 2px;
   border: none;
-  cursor: pointer;
+  cursor: ${(props) => (props.$disabled ? 'text' : 'pointer')};
   font-size: ${getFontSize() - 2}px;
   background: transparent;
   color: ${lightGray};
@@ -211,7 +211,7 @@ function ModelOption({
   );
 }
 
-function ModelSelect() {
+function ModelSelect({ disabled = false }: { disabled?: boolean }) {
   const dispatch = useDispatch();
   const defaultModel = useAppSelector(selectDefaultModel);
   const allModels = useAppSelector((state) => state.config.config.models);
@@ -318,6 +318,7 @@ function ModelSelect() {
           className="h-[18px] overflow-hidden"
           style={{ padding: 0 }}
           onClick={calculatePosition}
+          $disabled={disabled}
         >
           <div className="flex max-w-[33vw] items-center gap-0.5 text-gray-400 transition-colors duration-200">
             <span className="truncate">
@@ -329,6 +330,7 @@ function ModelSelect() {
             />
           </div>
         </StyledListboxButton>
+        {!disabled && (
         <StyledListboxOptions
           $showabove={showAbove}
           className="z-50 max-w-[90vw]"
@@ -341,7 +343,8 @@ function ModelSelect() {
                 option={option}
                 idx={idx}
                 key={idx}
-                showDelete={options.length > 1}
+                //showDelete={options.length > 1}
+                showDelete={false}
                 showMissingApiKeyMsg={option.apiKey === ""}
               />
             ))}
@@ -372,6 +375,7 @@ function ModelSelect() {
             </span>
           </div>
         </StyledListboxOptions>
+        )}
       </div>
     </Listbox>
   );
