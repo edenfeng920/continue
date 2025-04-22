@@ -37,7 +37,7 @@ const StyledDiv = styled.div<{ isHidden?: boolean }>`
   align-items: center;
   font-size: ${getFontSize() - 2}px;
   cursor: ${(props) => (props.isHidden ? "default" : "text")};
-  opacity: ${(props) => (props.isHidden ? 0 : 1)};
+  display: ${(props) => (props.isHidden ? "none" : "flex")};
   pointer-events: ${(props) => (props.isHidden ? "none" : "auto")};
   user-select: none;
 

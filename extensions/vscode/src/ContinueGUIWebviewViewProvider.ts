@@ -8,8 +8,10 @@ import { getExtensionVersion } from "./util/util";
 import { getExtensionUri, getNonce, getUniqueId } from "./util/vscode";
 import { VsCodeWebviewProtocol } from "./webviewProtocol";
 import type { FileEdit } from "core";
+
 import CryptoJS from 'crypto-js';
 import { isLoggedIn, login } from "./authStatus";
+import { outputChannel2 } from "./extension";
 
 export class ContinueGUIWebviewViewProvider
   implements vscode.WebviewViewProvider
@@ -30,6 +32,9 @@ export class ContinueGUIWebviewViewProvider
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): void | Thenable<void> {
+    console.log("[3] resolveWebviewView() called");
+    outputChannel2.appendLine("[3] resolveWebviewView() called");
+    
     this._webviewView = webviewView;
     this._webview = webviewView.webview;
 

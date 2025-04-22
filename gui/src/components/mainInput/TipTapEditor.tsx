@@ -990,7 +990,8 @@ function TipTapEditor(props: TipTapEditorProps) {
         <InputToolbar
           toolbarOptions={props.toolbarOptions}
           activeKey={activeKey}
-          hidden={shouldHideToolbar && !props.isMainInput}
+          //hidden={shouldHideToolbar && !props.isMainInput}
+          hidden={!props.isMainInput}
           onAddContextItem={() => insertCharacterWithWhitespace("@")}
           onAddSlashCommand={() => insertCharacterWithWhitespace("/")}
           onEnter={onEnterRef.current}

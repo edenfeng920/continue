@@ -9,6 +9,9 @@ import * as vscode from "vscode";
 
 import { getExtensionVersion } from "./util/util";
 
+// 创建第二个输出通道
+export const outputChannel2 = vscode.window.createOutputChannel('Continue - Console');
+
 async function dynamicImportAndActivate(context: vscode.ExtensionContext) {
   await setupCa();
   const { activateExtension } = await import("./activation/activate");
@@ -16,7 +19,14 @@ async function dynamicImportAndActivate(context: vscode.ExtensionContext) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  return dynamicImportAndActivate(context).catch((e) => {
+  console.log("[1] activate() start");
+  outputChannel2.appendLine("[1] activate() start");
+  return dynamicImportAndActivate(context)
+  .then(() => {
+    outputChannel2.appendLine("[2] activate() success");
+    console.log("[2] activate() success");
+  })
+  .catch((e) => {
     console.log("Error activating extension: ", e);
     Telemetry.capture(
       "vscode_extension_activation_error",
@@ -55,6 +65,3 @@ export function deactivate() {
 
   Telemetry.shutdownPosthogClient();
 }
-
-// 创建第二个输出通道
-export const outputChannel2 = vscode.window.createOutputChannel('Continue - Console');

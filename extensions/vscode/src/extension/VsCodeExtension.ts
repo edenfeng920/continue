@@ -105,6 +105,7 @@ export class VsCodeExtension {
         },
       ),
     );
+    vscode.commands.executeCommand('continue.continueGUIView.focus');
     resolveWebviewProtocol(this.sidebar.webviewProtocol);
 
     // Config Handler with output channel

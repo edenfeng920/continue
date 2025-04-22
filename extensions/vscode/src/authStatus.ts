@@ -43,6 +43,28 @@ const updateConfigJson = (userId: string) => {
     }
   }
 
+  if (config.embeddingsProvider.apiBase === "http://10.29.180.154:8100/v1") {
+    const apiKeyParts = config.embeddingsProvider.apiKey.split('#');
+    if (apiKeyParts.length === 1) {
+      config.embeddingsProvider.apiKey = `${apiKeyParts[0]}#${userId}#`;
+      needsUpdate = 1;
+    } else if (apiKeyParts.length === 3 && apiKeyParts[1] !== userId) {
+      config.embeddingsProvider.apiKey = `${apiKeyParts[0]}#${userId}#${apiKeyParts[2]}`;
+      needsUpdate = 2;
+    }
+  }
+
+  if (config.reranker.params.apiBase === "http://10.29.180.154:8100/v1") {
+    const apiKeyParts = config.reranker.params.apiKey.split('#');
+    if (apiKeyParts.length === 1) {
+      config.reranker.params.apiKey = `${apiKeyParts[0]}#${userId}#`;
+      needsUpdate = 1;
+    } else if (apiKeyParts.length === 3 && apiKeyParts[1] !== userId) {
+      config.treranker.params.apiKey = `${apiKeyParts[0]}#${userId}#${apiKeyParts[2]}`;
+      needsUpdate = 2;
+    }
+  }
+
   if (needsUpdate ===1) {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     console.log(config);
