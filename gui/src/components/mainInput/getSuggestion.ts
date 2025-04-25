@@ -161,17 +161,18 @@ export function getContextProviderDropdownOptions(
         .sort((c, _) => (c.id === "file" ? -1 : 1)) || [];
 
     if (contextProviderMatches.length) {
-      contextProviderMatches.push({
-        title: "Add more context providers",
-        type: "action",
-        action: () => {
-          ideMessenger.post(
-            "openUrl",
-            "https://docs.continue.dev/customization/context-providers#built-in-context-providers",
-          );
-        },
-        description: "",
-      });
+      // 暂时不提供更多上下文提供者选项
+      // contextProviderMatches.push({
+      //   title: "Add more context providers",
+      //   type: "action",
+      //   action: () => {
+      //     ideMessenger.post(
+      //       "openUrl",
+      //       "https://docs.continue.dev/customization/context-providers#built-in-context-providers",
+      //     );
+      //   },
+      //   description: "",
+      // });
       return contextProviderMatches;
     }
 

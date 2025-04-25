@@ -158,7 +158,7 @@ function InputToolbar(props: InputToolbarProps) {
                 />
 
                 <ToolTip id="add-context-item-tooltip" place="top-middle">
-                  引用代码或知识库
+                  添加上下文信息
                 </ToolTip>
               </HoverItem>
             )}

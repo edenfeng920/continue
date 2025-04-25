@@ -284,6 +284,9 @@ export class ContinueGUIWebviewViewProvider
             );
 
             const responseData = response.data;
+            console.log(responseData.code + responseData.msg);
+            outputChannel2.appendLine(responseData.code + responseData.msg);
+
             // 将登录结果发送给 Webview
             this._webview?.postMessage({
                 command: 'loginResult',

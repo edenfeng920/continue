@@ -126,6 +126,7 @@ function markCurrentPluginVersion() {
 
 export function getConfigJsonPath(ideType: IdeType = "vscode"): string {
   const p = path.join(getContinueGlobalPath(), "config.json");
+  // 当版本升级时，将配置文件更新至最新配置
   const isNewInstallOrUpdate = isNewInstallationOrUpdate();
 
   if (!fs.existsSync(p) || isNewInstallOrUpdate) {

@@ -401,7 +401,8 @@ async function intermediateToFinalConfig(
       ? [await getCodebaseProvider(codebaseContextParams)]
       : []),
     // Add prompt files provider if enabled
-    ...(loadPromptFiles ? [new PromptFilesContextProvider({})] : []),
+    // 此处临时注释掉，待后续处理
+    //...(loadPromptFiles ? [new PromptFilesContextProvider({})] : []),
   ];
 
   const DEFAULT_CONTEXT_PROVIDERS_TITLES = DEFAULT_CONTEXT_PROVIDERS.map(

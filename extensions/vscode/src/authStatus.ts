@@ -60,7 +60,7 @@ const updateConfigJson = (userId: string) => {
       config.reranker.params.apiKey = `${apiKeyParts[0]}#${userId}#`;
       needsUpdate = 1;
     } else if (apiKeyParts.length === 3 && apiKeyParts[1] !== userId) {
-      config.treranker.params.apiKey = `${apiKeyParts[0]}#${userId}#${apiKeyParts[2]}`;
+      config.reranker.params.apiKey = `${apiKeyParts[0]}#${userId}#${apiKeyParts[2]}`;
       needsUpdate = 2;
     }
   }
