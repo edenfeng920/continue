@@ -180,6 +180,15 @@ export function fromChatCompletionChunk(
 ): ChatMessage | undefined {
   const delta = chunk.choices?.[0]?.delta;
 
+  //当返回reasoning_content时，说明处于思考阶段
+  if (delta?.reasoning_content) {
+    return {
+      role: "assistant",
+      content: delta.content ? delta.content : "",
+      reasoning_content: delta.reasoning_content,
+    };
+  }
+  
   if (delta?.content) {
     return {
       role: "assistant",

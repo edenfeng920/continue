@@ -353,10 +353,12 @@ export interface UserChatMessage {
   content: MessageContent;
 }
 
+// 增加深度思考所需的reasoning_content字段
 export interface AssistantChatMessage {
   role: "assistant";
   content: MessageContent;
   toolCalls?: ToolCallDelta[];
+  reasoning_content?: string;
 }
 
 export interface SystemChatMessage {

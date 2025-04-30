@@ -358,6 +358,23 @@ export const sessionSlice = createSlice({
             state.history.push(historyItem);
           } else {
             // Add to the existing message
+            
+            // 增加对于最新的深度思考模型接口的支持
+            if (message.role === "assistant" && message.reasoning_content) {
+              if (!lastItem.reasoning) {
+                lastItem.reasoning = {
+                  startAt: Date.now(),
+                  active: true,
+                  text: message.reasoning_content.trim(),
+                };
+              } else if (lastItem.reasoning?.active) {
+                lastItem.reasoning.text += message.reasoning_content.trim();
+              }
+            } else if (lastItem.reasoning?.active) {
+              lastItem.reasoning.active = false;
+              lastItem.reasoning.endAt = Date.now();
+            }
+
             if (message.content) {
               const messageContent = renderChatMessage(message);
               if (messageContent.includes("<think>")) {
