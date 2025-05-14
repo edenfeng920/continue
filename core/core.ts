@@ -612,10 +612,16 @@ export class Core {
     });
 
     on("chatDescriber/describe", async (msg) => {
-      const currentModel = await this.configHandler.llmFromTitle(
-        msg.data.selectedModelTitle,
+      // const currentModel = await this.configHandler.llmFromTitle(
+      //   msg.data.selectedModelTitle,
+      // );
+      // return await ChatDescriber.describe(currentModel, {}, msg.data.text);
+
+      // 起标题模型优选选择Qwen2.5-32B，因为当前模型可能为非必要的推理模型
+      const titleModel = await this.configHandler.llmFromTitle(
+        "Qwen2.5-32B",
       );
-      return await ChatDescriber.describe(currentModel, {}, msg.data.text);
+      return await ChatDescriber.describe(titleModel, {}, msg.data.text);
     });
 
     async function* runNodeJsSlashCommand(

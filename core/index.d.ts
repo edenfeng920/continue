@@ -442,6 +442,7 @@ interface Reasoning {
   text: string;
   startAt: number;
   endAt?: number;
+  mode: number;
 }
 
 export interface ChatHistoryItem {

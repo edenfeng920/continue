@@ -8,7 +8,7 @@ import type { IMessenger } from "../protocol/messenger";
 export class ChatDescriber {
   static maxTokens = 12;
   static prompt: string | undefined =
-    "Given the following... please reply with a title for the chat in chinese, that is 3-4 words in length, all words used should be directly related to the content of the chat, avoid using verbs unless they are directly related to the content of the chat, no additional text or explanation, you don't need ending punctuation.\n\n";
+    "Given the following... please reply with a title for the chat in chinese, that is 3-5 words in length, all words used should be directly related to the content of the chat, avoid using verbs unless they are directly related to the content of the chat, no additional text or explanation, you don't need ending punctuation.\n\n";
   static messenger: IMessenger<ToCoreProtocol, FromCoreProtocol>;
 
   static async describe(

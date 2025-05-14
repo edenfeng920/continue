@@ -1,3 +1,4 @@
+// editor中的提示框逻辑
 /* eslint-disable @typescript-eslint/naming-convention */
 import { EXTENSION_NAME } from "core/control-plane/env";
 // @ts-ignore

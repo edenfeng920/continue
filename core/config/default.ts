@@ -94,6 +94,22 @@ export const defaultConfig: SerializedContinueConfig = {
       "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
       "apiBase": "http://10.29.180.154:8100/v1",
       "systemMessage": "你是代码专家，你给出的回复简洁有效"
+    },
+    {
+      "title": "DeepSeek-R1私有版",
+      "provider": "openai",
+      "model": "DeepSeek-R1",
+      "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+      "apiBase": "http://10.29.180.154:8100/v1",
+      "systemMessage": "你是代码专家，你给出的回复简洁有效"
+    },
+    {
+      "title": "DeepSeek-R1满血版",
+      "provider": "openai",
+      "model": "DeepSeek-R1-doubao",
+      "apiKey": "RPqltRBX7MRICFGKGKxk/w==",
+      "apiBase": "http://10.29.180.154:8100/v1",
+      "systemMessage": "你是代码专家，你给出的回复简洁有效"
     }
   ],
   "tabAutocompleteModel": {

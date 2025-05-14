@@ -123,6 +123,12 @@ export const sessionSlice = createSlice({
       lastMessage.promptLogs = lastMessage.promptLogs
         ? lastMessage.promptLogs.concat(payload)
         : payload;
+
+      // Inactive thinking for reasoning models when '</think>' tag is not received on request completion
+      if (lastMessage.reasoning?.active) {
+        lastMessage.reasoning.active = false;
+        lastMessage.reasoning.endAt = Date.now();
+      }
     },
     setActive: (state) => {
       state.isStreaming = true;
@@ -365,12 +371,14 @@ export const sessionSlice = createSlice({
                 lastItem.reasoning = {
                   startAt: Date.now(),
                   active: true,
+                  //模式1代表通过reasoning_content独立字段传参
+                  mode: 1,
                   text: message.reasoning_content.trim(),
                 };
               } else if (lastItem.reasoning?.active) {
                 lastItem.reasoning.text += message.reasoning_content.trim();
               }
-            } else if (lastItem.reasoning?.active) {
+            } else if (lastItem.reasoning?.active && lastItem.reasoning?.mode === 1) {
               lastItem.reasoning.active = false;
               lastItem.reasoning.endAt = Date.now();
             }
@@ -381,6 +389,8 @@ export const sessionSlice = createSlice({
                 lastItem.reasoning = {
                   startAt: Date.now(),
                   active: true,
+                  //模式2代表通过<think></think>标签包裹内容
+                  mode: 2,
                   text: messageContent.replace("<think>", "").trim(),
                 };
               } else if (
@@ -393,7 +403,7 @@ export const sessionSlice = createSlice({
                 lastItem.reasoning.active = false;
                 lastItem.reasoning.endAt = Date.now();
                 lastMessage.content += answerStart.trimStart();
-              } else if (lastItem.reasoning?.active) {
+              } else if (lastItem.reasoning?.active && lastItem.reasoning?.mode === 2) {
                 lastItem.reasoning.text += messageContent;
               } else {
                 // Note this only works because new message above
