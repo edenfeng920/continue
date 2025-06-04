@@ -1,4 +1,9 @@
-import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  ExclamationTriangleIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import {
   SharedConfigSchema,
   modifyAnyConfigWithSharedConfig,
@@ -8,16 +13,19 @@ import { Input } from "../../components";
 import NumberInput from "../../components/gui/NumberInput";
 import { Select } from "../../components/gui/Select";
 import ToggleSwitch from "../../components/gui/Switch";
+import { ToolTip } from "../../components/gui/Tooltip";
+import { useFontSize } from "../../components/ui/font";
 import { IdeMessengerContext } from "../../context/IdeMessenger";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { updateConfig } from "../../redux/slices/configSlice";
-import { getFontSize } from "../../util";
+import { setLocalStorage } from "../../util/localStorage";
 
 export function UserSettingsForm() {
   /////// User settings section //////
   const dispatch = useAppDispatch();
   const ideMessenger = useContext(IdeMessengerContext);
   const config = useAppSelector((state) => state.config.config);
+  const [showExperimental, setShowExperimental] = useState(false);
 
   function handleUpdate(sharedConfig: SharedConfigSchema) {
     // Optimistic update
@@ -65,8 +73,11 @@ export function UserSettingsForm() {
   const codeWrap = config.ui?.codeWrap ?? false;
   const showChatScrollbar = config.ui?.showChatScrollbar ?? false;
   const readResponseTTS = config.experimental?.readResponseTTS ?? false;
+  const autoAcceptEditToolDiffs = config.ui?.autoAcceptEditToolDiffs ?? false;
   const displayRawMarkdown = config.ui?.displayRawMarkdown ?? false;
   const disableSessionTitles = config.disableSessionTitles ?? false;
+  const useCurrentFileAsContext =
+    config.experimental?.useCurrentFileAsContext ?? false;
 
   const allowAnonymousTelemetry = config.allowAnonymousTelemetry ?? true;
   const disableIndexing = config.disableIndexing ?? false;
@@ -79,7 +90,7 @@ export function UserSettingsForm() {
     config.tabAutocompleteOptions?.multilineCompletions ?? "auto";
   const modelTimeout = config.tabAutocompleteOptions?.modelTimeout ?? 150;
   const debounceDelay = config.tabAutocompleteOptions?.debounceDelay ?? 250;
-  const fontSize = getFontSize();
+  const fontSize = useFontSize();
 
   const cancelChangeDisableAutocomplete = () => {
     setFormDisableAutocomplete(disableAutocompleteInFiles);
@@ -162,7 +173,6 @@ export function UserSettingsForm() {
               }
               text="Text-to-Speech Output"
             />
-
             {/* <ToggleSwitch
                     isToggled={useChromiumForDocsCrawling}
                     onToggle={() =>
@@ -225,11 +235,12 @@ export function UserSettingsForm() {
               <span className="text-left">Font Size</span>
               <NumberInput
                 value={fontSize}
-                onChange={(val) =>
+                onChange={(val) => {
+                  setLocalStorage("fontSize", val);
                   handleUpdate({
                     fontSize: val,
-                  })
-                }
+                  });
+                }}
                 min={7}
                 max={50}
               />
@@ -255,7 +266,7 @@ export function UserSettingsForm() {
               </Select>
             </label>
             <label className="flex items-center justify-between gap-3">
-              <span className="text-left">Model Timeout (ms)</span>
+              <span className="text-left">Autocomplete Timeout (ms)</span>
               <NumberInput
                 value={modelTimeout}
                 onChange={(val) =>
@@ -268,7 +279,7 @@ export function UserSettingsForm() {
               />
             </label>
             <label className="flex items-center justify-between gap-3">
-              <span className="text-left">Model Debounce (ms)</span>
+              <span className="text-left">Autocomplete Debounce (ms)</span>
               <NumberInput
                 value={debounceDelay}
                 onChange={(val) =>
@@ -325,6 +336,58 @@ export function UserSettingsForm() {
                 Comma-separated list of path matchers
               </span>
             </form>
+          </div>
+
+          <div className="flex flex-col gap-x-2 gap-y-4">
+            <div
+              className="flex cursor-pointer items-center gap-2 text-left text-sm font-semibold"
+              onClick={() => setShowExperimental(!showExperimental)}
+            >
+              <ChevronRightIcon
+                className={`h-4 w-4 transition-transform ${
+                  showExperimental ? "rotate-90" : ""
+                }`}
+              />
+              <span>Experimental Settings</span>
+            </div>
+            <div
+              className={`duration-400 overflow-hidden transition-all ease-in-out ${
+                showExperimental ? "max-h-40" : "max-h-0"
+              }`}
+            >
+              <div className="flex flex-col gap-x-1 gap-y-4 pl-6">
+                <ToggleSwitch
+                  isToggled={autoAcceptEditToolDiffs}
+                  onToggle={() =>
+                    handleUpdate({
+                      autoAcceptEditToolDiffs: !autoAcceptEditToolDiffs,
+                    })
+                  }
+                  text="Auto-Accept Agent Edits"
+                  showIfToggled={
+                    <>
+                      <ExclamationTriangleIcon
+                        data-tooltip-id={`auto-accept-diffs-warning-tooltip`}
+                        className="h-3 w-3 text-yellow-500"
+                      />
+                      <ToolTip id={`auto-accept-diffs-warning-tooltip`}>
+                        {`Be very careful with this setting. When turned on, Agent mode's edit tool can make changes to files with no manual review or guaranteed stopping point`}
+                      </ToolTip>
+                    </>
+                  }
+                />
+
+                <ToggleSwitch
+                  isToggled={useCurrentFileAsContext}
+                  onToggle={() =>
+                    handleUpdate({
+                      useCurrentFileAsContext: !useCurrentFileAsContext,
+                    })
+                  }
+                  text="Add Current File by Default"
+                />
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
