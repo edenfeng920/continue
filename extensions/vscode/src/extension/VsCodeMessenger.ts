@@ -31,6 +31,8 @@ import { getExtensionUri } from "../util/vscode";
 import { VsCodeIde } from "../VsCodeIde";
 import { VsCodeWebviewProtocol } from "../webviewProtocol";
 
+import { VsCodeExtension } from "./VsCodeExtension";
+
 type ToIdeOrWebviewFromCoreProtocol = ToIdeFromCoreProtocol &
   ToWebviewFromCoreProtocol;
 
@@ -82,6 +84,8 @@ export class VsCodeMessenger {
     private readonly configHandlerPromise: Promise<ConfigHandler>,
     private readonly workOsAuthProvider: WorkOsAuthProvider,
     private readonly editDecorationManager: EditDecorationManager,
+    private readonly context: vscode.ExtensionContext,
+    private readonly vsCodeExtension: VsCodeExtension,
   ) {
     /** WEBVIEW ONLY LISTENERS **/
     this.onWebview("showFile", (msg) => {
@@ -237,6 +241,7 @@ export class VsCodeMessenger {
           prompt: stripImages(prompt),
           completion: fileAfterEdit ?? "",
           modelProvider: model.underlyingProviderName,
+          modelName: model.title ?? "",
           modelTitle: model.title ?? "",
           filepath: msg.data.range.filepath,
         },
@@ -321,10 +326,10 @@ export class VsCodeMessenger {
       await ide.runCommand(msg.data.command);
     });
     this.onWebviewOrCore("getSearchResults", async (msg) => {
-      return ide.getSearchResults(msg.data.query);
+      return ide.getSearchResults(msg.data.query, msg.data.maxResults);
     });
     this.onWebviewOrCore("getFileResults", async (msg) => {
-      return ide.getFileResults(msg.data.pattern);
+      return ide.getFileResults(msg.data.pattern, msg.data.maxResults);
     });
     this.onWebviewOrCore("subprocess", async (msg) => {
       return ide.subprocess(msg.data.command, msg.data.cwd);
@@ -387,6 +392,14 @@ export class VsCodeMessenger {
       return await ide.gotoDefinition(msg.data.location);
     });
 
+    this.onWebviewOrCore("getReferences", async (msg) => {
+      return await ide.getReferences(msg.data.location);
+    });
+
+    this.onWebviewOrCore("getDocumentSymbols", async (msg) => {
+      return await ide.getDocumentSymbols(msg.data.textDocumentIdentifier);
+    });
+
     this.onWebviewOrCore("getFileStats", async (msg) => {
       return await ide.getFileStats(msg.data.files);
     });
@@ -413,10 +426,6 @@ export class VsCodeMessenger {
 
     this.onWebviewOrCore("isTelemetryEnabled", async (msg) => {
       return await ide.isTelemetryEnabled();
-    });
-
-    this.onWebviewOrCore("getWorkspaceConfigs", async (msg) => {
-      return await ide.getWorkspaceConfigs();
     });
 
     this.onWebviewOrCore("getUniqueId", async (msg) => {

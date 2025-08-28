@@ -2,9 +2,10 @@ import { RequestOptions } from "@continuedev/config-types";
 import * as followRedirects from "follow-redirects";
 import { HttpProxyAgent } from "http-proxy-agent";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import fetch, { BodyInit, RequestInit, Response } from "node-fetch";
+import { BodyInit, RequestInit, Response } from "node-fetch";
 import { getAgentOptions } from "./getAgentOptions.js";
-import { getProxyFromEnv, shouldBypassProxy } from "./util.js";
+import patchedFetch from "./node-fetch-patch.js";
+import { getProxy, shouldBypassProxy } from "./util.js";
 
 const { http, https } = (followRedirects as any).default;
 
@@ -88,18 +89,13 @@ export async function fetchwithRequestOptions(
     url.host = "127.0.0.1";
   }
 
-  const agentOptions = getAgentOptions(requestOptions);
+  const agentOptions = await getAgentOptions(requestOptions);
 
   // Get proxy from options or environment variables
-  let proxy = requestOptions?.proxy;
-  if (!proxy) {
-    proxy = getProxyFromEnv(url.protocol);
-  }
+  const proxy = getProxy(url.protocol, requestOptions);
 
   // Check if should bypass proxy based on requestOptions or NO_PROXY env var
-  const shouldBypass =
-    requestOptions?.noProxy?.includes(url.hostname) ||
-    shouldBypassProxy(url.hostname);
+  const shouldBypass = shouldBypassProxy(url.hostname, requestOptions);
 
   // Create agent
   const protocol = url.protocol === "https:" ? https : http;
@@ -111,9 +107,30 @@ export async function fetchwithRequestOptions(
       : new protocol.Agent(agentOptions);
 
   let headers: { [key: string]: string } = {};
-  for (const [key, value] of Object.entries(init?.headers || {})) {
-    headers[key] = value as string;
+
+  // Handle different header formats
+  if (init?.headers) {
+    const headersSource = init.headers as any;
+
+    // Check if it's a Headers-like object (OpenAI v5 HeadersList, standard Headers)
+    if (headersSource && typeof headersSource.forEach === "function") {
+      // Use forEach method which works reliably on Headers objects
+      headersSource.forEach((value: string, key: string) => {
+        headers[key] = value;
+      });
+    } else if (Array.isArray(headersSource)) {
+      // This is an array of [key, value] tuples
+      for (const [key, value] of headersSource) {
+        headers[key] = value as string;
+      }
+    } else if (headersSource && typeof headersSource === "object") {
+      // This is a plain object
+      for (const [key, value] of Object.entries(headersSource)) {
+        headers[key] = value as string;
+      }
+    }
   }
+
   headers = {
     ...headers,
     ...requestOptions?.headers,
@@ -148,7 +165,7 @@ export async function fetchwithRequestOptions(
 
   // fetch the request with the provided options
   try {
-    const resp = await fetch(url, {
+    const resp = await patchedFetch(url, {
       ...init,
       body: finalBody,
       headers: headers,

@@ -3,6 +3,7 @@ import { baseDevDataAllSchema } from "../base.js";
 
 export const editOutcomeEventAllSchema = baseDevDataAllSchema.extend({
   modelProvider: z.string(),
+  modelName: z.string(),
   modelTitle: z.string(),
   prompt: z.string(),
   completion: z.string(),
@@ -12,4 +13,5 @@ export const editOutcomeEventAllSchema = baseDevDataAllSchema.extend({
   newCodeLines: z.number(),
   lineChange: z.number(),
   accepted: z.boolean(),
+  filepath: z.string(),
 });

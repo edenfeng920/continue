@@ -2,6 +2,7 @@ import {
   ConfigResult,
   ConfigValidationError,
   FullSlug,
+  Policy,
 } from "@continuedev/config-yaml";
 
 import {
@@ -11,6 +12,7 @@ import {
   IDE,
 } from "../index.js";
 
+import { Logger } from "../util/Logger.js";
 import { finalToBrowserConfig } from "./load.js";
 import { IProfileLoader } from "./profile/IProfileLoader.js";
 
@@ -30,6 +32,7 @@ export interface OrganizationDescription {
   iconUrl: string;
   name: string;
   slug: string | undefined; // TODO: This doesn't need to be undefined, just doing while transitioning the backend
+  policy?: Policy;
 }
 
 export type OrgWithProfiles = OrganizationDescription & {
@@ -87,38 +90,45 @@ export class ProfileLifecycleManager {
     }
 
     // Set pending config promise
-    this.pendingConfigPromise = new Promise(async (resolve, reject) => {
-      let result: ConfigResult<ContinueConfig>;
-      // This try catch is expected to catch high-level errors that aren't block-specific
-      // Like invalid json, invalid yaml, file read errors, etc.
-      // NOT block-specific loading errors
-      try {
-        result = await this.profileLoader.doLoadConfig();
-      } catch (e) {
-        const message =
-          e instanceof Error
-            ? `${e.message}\n${e.stack ? e.stack : ""}`
-            : "Error loading config";
-        result = {
-          errors: [
-            {
-              fatal: true,
-              message,
-            },
-          ],
-          config: undefined,
-          configLoadInterrupted: true,
-        };
-      }
+    this.pendingConfigPromise = new Promise((resolve) => {
+      void (async () => {
+        let result: ConfigResult<ContinueConfig>;
+        // This try catch is expected to catch high-level errors that aren't block-specific
+        // Like invalid json, invalid yaml, file read errors, etc.
+        // NOT block-specific loading errors
+        try {
+          result = await this.profileLoader.doLoadConfig();
+        } catch (e) {
+          // Capture config loading system failures to Sentry
+          Logger.error(e, {
+            context: "profile_config_loading",
+          });
 
-      if (result.config) {
-        // Add registered context providers
-        result.config.contextProviders = (
-          result.config.contextProviders ?? []
-        ).concat(additionalContextProviders);
-      }
+          const message =
+            e instanceof Error
+              ? `${e.message}\n${e.stack ? e.stack : ""}`
+              : "Error loading config";
+          result = {
+            errors: [
+              {
+                fatal: true,
+                message,
+              },
+            ],
+            config: undefined,
+            configLoadInterrupted: true,
+          };
+        }
 
-      resolve(result);
+        if (result.config) {
+          // Add registered context providers
+          result.config.contextProviders = (
+            result.config.contextProviders ?? []
+          ).concat(additionalContextProviders);
+        }
+
+        resolve(result);
+      })();
     });
 
     // Wait for the config promise to resolve

@@ -1,25 +1,25 @@
 package com.github.continuedev.continueintellijextension.services
 
-import com.github.continuedev.continueintellijextension.constants.getConfigJsPath
 import com.github.continuedev.continueintellijextension.constants.getConfigJsonPath
-import com.intellij.execution.target.value.constant
+import com.github.continuedev.continueintellijextension.error.ContinueSentryService
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.components.*
+import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
+import com.intellij.openapi.components.service
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.DumbAware
-import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.concurrency.AppExecutorUtil
+import com.intellij.util.io.HttpRequests
 import com.intellij.util.messages.Topic
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.io.File
 import java.io.IOException
+import java.net.URL
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import javax.swing.*
@@ -30,7 +30,6 @@ class ContinueSettingsComponent : DumbAware {
     val remoteConfigSyncPeriod: JTextField = JTextField()
     val userToken: JTextField = JTextField()
     val enableTabAutocomplete: JCheckBox = JCheckBox("Enable Tab Autocomplete")
-    val enableOSR: JCheckBox = JCheckBox("Enable Off-Screen Rendering")
     val displayEditorTooltip: JCheckBox = JCheckBox("Display Editor Tooltip")
     val showIDECompletionSideBySide: JCheckBox = JCheckBox("Show IDE completions side-by-side")
 
@@ -58,8 +57,6 @@ class ContinueSettingsComponent : DumbAware {
         constraints.gridy++
         panel.add(enableTabAutocomplete, constraints)
         constraints.gridy++
-        panel.add(enableOSR, constraints)
-        constraints.gridy++
         panel.add(displayEditorTooltip, constraints)
         constraints.gridy++
         panel.add(showIDECompletionSideBySide, constraints)
@@ -72,11 +69,10 @@ class ContinueSettingsComponent : DumbAware {
     }
 }
 
-@Serializable
-class ContinueRemoteConfigSyncResponse {
-    var configJson: String? = null
-    var configJs: String? = null
-}
+data class ContinueRemoteConfigSyncResponse(
+    var configJson: String?,
+    var configJs: String?
+)
 
 @State(
     name = "com.github.continuedev.continueintellijextension.services.ContinueExtensionSettings",
@@ -91,7 +87,6 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
         var remoteConfigSyncPeriod: Int = 60
         var userToken: String? = null
         var enableTabAutocomplete: Boolean = true
-        var enableOSR: Boolean = shouldRenderOffScreen()
         var displayEditorTooltip: Boolean = true
         var showIDECompletionSideBySide: Boolean = false
         var continueTestEnvironment: String = "production"
@@ -111,56 +106,29 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
 
     companion object {
         val instance: ContinueExtensionSettings
-            get() = ServiceManager.getService(ContinueExtensionSettings::class.java)
+            get() = service<ContinueExtensionSettings>()
     }
 
 
     // Sync remote config from server
     private fun syncRemoteConfig() {
-        val state = instance.continueState
-
-        if (state.remoteConfigServerUrl != null && state.remoteConfigServerUrl!!.isNotEmpty()) {
-            // download remote config as json file
-
-            val client = OkHttpClient()
-            val baseUrl = state.remoteConfigServerUrl?.removeSuffix("/")
-
-            val requestBuilder = Request.Builder().url("${baseUrl}/sync")
-
-            if (state.userToken != null) {
-                requestBuilder.addHeader("Authorization", "Bearer ${state.userToken}")
-            }
-
-            val request = requestBuilder.build()
-            var configResponse: ContinueRemoteConfigSyncResponse? = null
-
+        val remoteServerUrl = state.remoteConfigServerUrl
+        val token = state.userToken
+        if (remoteServerUrl != null && remoteServerUrl.isNotEmpty()) {
+            val baseUrl = remoteServerUrl.removeSuffix("/")
             try {
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw IOException("Unexpected code $response")
-
-                    response.body?.string()?.let { responseBody ->
-                        try {
-                            configResponse =
-                                Json.decodeFromString<ContinueRemoteConfigSyncResponse>(responseBody)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            return
-                        }
-                    }
-                }
+                val url = "$baseUrl/sync"
+                val responseBody = HttpRequests.post(url, HttpRequests.JSON_CONTENT_TYPE)
+                    .tuner { connection ->
+                        if (token != null)
+                            connection.addRequestProperty("Authorization", "Bearer $token")
+                    }.readString()
+                val response = Json.decodeFromString<ContinueRemoteConfigSyncResponse>(responseBody)
+                val file = File(getConfigJsonPath(URL(url).host))
+                response.configJs.let { file.writeText(it!!) }
+                response.configJson.let { file.writeText(it!!) }
             } catch (e: IOException) {
-                e.printStackTrace()
-                return
-            }
-
-            if (configResponse?.configJson?.isNotEmpty()!!) {
-                val file = File(getConfigJsonPath(request.url.host))
-                file.writeText(configResponse!!.configJson!!)
-            }
-
-            if (configResponse?.configJs?.isNotEmpty()!!) {
-                val file = File(getConfigJsPath(request.url.host))
-                file.writeText(configResponse!!.configJs!!)
+                service<ContinueSentryService>().report(e, "Unexpected exception during remote config sync")
             }
         }
     }
@@ -174,7 +142,7 @@ open class ContinueExtensionSettings : PersistentStateComponent<ContinueExtensio
 
         instance.remoteSyncFuture = AppExecutorUtil.getAppScheduledExecutorService()
             .scheduleWithFixedDelay(
-                { syncRemoteConfig() },
+                ::syncRemoteConfig,
                 0,
                 continueState.remoteConfigSyncPeriod.toLong(),
                 TimeUnit.MINUTES
@@ -205,7 +173,6 @@ class ContinueExtensionConfigurable : Configurable {
                     mySettingsComponent?.remoteConfigSyncPeriod?.text?.toInt() != settings.continueState.remoteConfigSyncPeriod ||
                     mySettingsComponent?.userToken?.text != settings.continueState.userToken ||
                     mySettingsComponent?.enableTabAutocomplete?.isSelected != settings.continueState.enableTabAutocomplete ||
-                    mySettingsComponent?.enableOSR?.isSelected != settings.continueState.enableOSR ||
                     mySettingsComponent?.displayEditorTooltip?.isSelected != settings.continueState.displayEditorTooltip ||
                     mySettingsComponent?.showIDECompletionSideBySide?.isSelected != settings.continueState.showIDECompletionSideBySide
         return modified
@@ -217,7 +184,6 @@ class ContinueExtensionConfigurable : Configurable {
         settings.continueState.remoteConfigSyncPeriod = mySettingsComponent?.remoteConfigSyncPeriod?.text?.toInt() ?: 60
         settings.continueState.userToken = mySettingsComponent?.userToken?.text
         settings.continueState.enableTabAutocomplete = mySettingsComponent?.enableTabAutocomplete?.isSelected ?: false
-        settings.continueState.enableOSR = mySettingsComponent?.enableOSR?.isSelected ?: true
         settings.continueState.displayEditorTooltip = mySettingsComponent?.displayEditorTooltip?.isSelected ?: true
         settings.continueState.showIDECompletionSideBySide =
             mySettingsComponent?.showIDECompletionSideBySide?.isSelected ?: false
@@ -233,7 +199,6 @@ class ContinueExtensionConfigurable : Configurable {
         mySettingsComponent?.remoteConfigSyncPeriod?.text = settings.continueState.remoteConfigSyncPeriod.toString()
         mySettingsComponent?.userToken?.text = settings.continueState.userToken
         mySettingsComponent?.enableTabAutocomplete?.isSelected = settings.continueState.enableTabAutocomplete
-        mySettingsComponent?.enableOSR?.isSelected = settings.continueState.enableOSR
         mySettingsComponent?.displayEditorTooltip?.isSelected = settings.continueState.displayEditorTooltip
         mySettingsComponent?.showIDECompletionSideBySide?.isSelected =
             settings.continueState.showIDECompletionSideBySide
@@ -245,36 +210,6 @@ class ContinueExtensionConfigurable : Configurable {
         mySettingsComponent = null
     }
 
-    override fun getDisplayName(): String {
-        return "Continue Extension Settings"
-    }
-}
-
-/**
- * This function checks if off-screen rendering (OSR) should be used.
- *
- * If ui.useOSR is set in config.json, that value is used.
- *
- * Otherwise, we check if the pluginSinceBuild is greater than or equal to 233, which corresponds
- * to IntelliJ platform version 2023.3 and later.
- *
- * Setting `setOffScreenRendering` to `false` causes a number of issues such as a white screen flash when loading
- * the GUI and the inability to set `cursor: pointer`. However, setting `setOffScreenRendering` to `true` on
- * platform versions prior to 2023.3.4 causes larger issues such as an inability to type input for certain languages,
- * e.g. Korean.
- *
- * References:
- * 1. https://youtrack.jetbrains.com/issue/IDEA-347828/JCEF-white-flash-when-tool-window-show#focus=Comments-27-9334070.0-0
- *    This issue mentions that white screen flash problems were resolved in platformVersion 2023.3.4.
- * 2. https://www.jetbrains.com/idea/download/other.html
- *    This documentation shows mappings from platformVersion to branchNumber.
- *
- * We use the branchNumber (e.g., 233) instead of the full version number (e.g., 2023.3.4) because
- * it's a simple integer without dot notation, making it easier to compare.
- */
-private fun shouldRenderOffScreen(): Boolean {
-    val minBuildNumber = 233
-    val applicationInfo = ApplicationInfo.getInstance()
-    val currentBuildNumber = applicationInfo.build.baselineVersion
-    return currentBuildNumber >= minBuildNumber
+    override fun getDisplayName(): String =
+        "Continue Extension Settings"
 }

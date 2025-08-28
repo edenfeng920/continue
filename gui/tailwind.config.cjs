@@ -27,7 +27,13 @@ module.exports = {
         "spin-slow": "spin 6s linear infinite",
       },
       borderRadius: {
-        default: "5px",
+        default: "0.5rem",
+      },
+      fontSize: {
+        "2xs": "0.6875rem", // 11px
+      },
+      outlineOffset: {
+        0.5: "0.5px",
       },
       colors: {
         background: varWithFallback("background"),
@@ -80,6 +86,7 @@ module.exports = {
         error: varWithFallback("error"),
         link: varWithFallback("link"),
         accent: varWithFallback("accent"),
+        terminal: varWithFallback("terminal"),
         findMatch: {
           DEFAULT: THEME_COLORS["find-match"].default,
           selected: varWithFallback("find-match-selected"),

@@ -43,9 +43,13 @@ class DocsContextProvider extends BaseContextProvider {
     try {
       const scores = await reranker.rerank(fullInput, chunksCopy);
 
-      chunksCopy.sort(
-        (a, b) => scores[chunksCopy.indexOf(b)] - scores[chunksCopy.indexOf(a)],
-      );
+      if (Array.isArray(scores)) {
+        // reranker model has returned a valid array
+        chunksCopy.sort(
+          (a, b) =>
+            scores[chunksCopy.indexOf(b)] - scores[chunksCopy.indexOf(a)],
+        );
+      }
 
       chunksCopy = chunksCopy.splice(
         0,
@@ -145,6 +149,11 @@ class DocsContextProvider extends BaseContextProvider {
   async loadSubmenuItems(
     args: LoadSubmenuItemsArgs,
   ): Promise<ContextSubmenuItem[]> {
+    const { config } = args;
+    // This set is used to filter out the docs that is not in docs config but exist in sqlite metadata
+    const configDocsSet = new Set(
+      config.docs?.map((doc) => doc.startUrl) || [],
+    );
     // Get docs service
     const docsService = DocsService.getSingleton();
     if (!docsService) {
@@ -159,12 +168,14 @@ class DocsContextProvider extends BaseContextProvider {
     // Get all indexed docs from the database
     const docs = (await docsService.listMetadata()) ?? [];
     for (const { startUrl, title, favicon } of docs) {
-      submenuItems.push({
-        title,
-        id: startUrl,
-        description: new URL(startUrl).hostname,
-        icon: favicon,
-      });
+      if (configDocsSet.has(startUrl)) {
+        submenuItems.push({
+          title,
+          id: startUrl,
+          description: new URL(startUrl).hostname,
+          icon: favicon,
+        });
+      }
     }
 
     // Sort alphabetically

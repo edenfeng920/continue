@@ -1,33 +1,27 @@
 import { useCallback, useContext, useEffect, useRef } from "react";
 import { IdeMessengerContext } from "../context/IdeMessenger";
 
-import { EDIT_MODE_STREAM_ID } from "core/edit/constants";
 import { FromCoreProtocol } from "core/protocol";
-import { useMainEditor } from "../components/mainInput/TipTapEditor";
+import { useAppDispatch, useAppSelector } from "../redux/hooks";
+import { setConfigLoading, setConfigResult } from "../redux/slices/configSlice";
+import { setLastNonEditSessionEmpty } from "../redux/slices/editState";
+import { updateIndexingStatus } from "../redux/slices/indexingSlice";
 import {
   initializeProfilePreferences,
   setOrganizations,
   setSelectedOrgId,
   setSelectedProfile,
-} from "../redux";
-import { useAppDispatch, useAppSelector } from "../redux/hooks";
-import { selectCurrentToolCallApplyState } from "../redux/selectors/selectCurrentToolCall";
-import { setConfigResult } from "../redux/slices/configSlice";
+} from "../redux/slices/profilesSlice";
 import {
-  setLastNonEditSessionEmpty,
-  updateEditStateApplyState,
-} from "../redux/slices/editState";
-import { updateIndexingStatus } from "../redux/slices/indexingSlice";
-import {
-  acceptToolCall,
   addContextItemsAtIndex,
-  updateApplyState,
+  setHasReasoningEnabled,
+  setIsSessionMetadataLoading,
 } from "../redux/slices/sessionSlice";
 import { setTTSActive } from "../redux/slices/uiSlice";
-import { exitEdit, streamResponseAfterToolCall } from "../redux/thunks";
+
 import { cancelStream } from "../redux/thunks/cancelStream";
+import { handleApplyStateUpdate } from "../redux/thunks/handleApplyStateUpdate";
 import { refreshSessionMetadata } from "../redux/thunks/session";
-import { streamResponseThunk } from "../redux/thunks/streamResponse";
 import { updateFileSymbolsFromHistory } from "../redux/thunks/updateFileSymbols";
 import {
   setDocumentStylesFromLocalStorage,
@@ -35,6 +29,7 @@ import {
 } from "../styles/theme";
 import { isJetBrains } from "../util";
 import { setLocalStorage } from "../util/localStorage";
+import { migrateLocalStorage } from "../util/migrateLocalStorage";
 import { useWebviewListener } from "./useWebviewListener";
 
 function ParallelListeners() {
@@ -42,17 +37,13 @@ function ParallelListeners() {
   const ideMessenger = useContext(IdeMessengerContext);
   const history = useAppSelector((store) => store.session.history);
   const isInEdit = useAppSelector((store) => store.session.isInEdit);
-
   const selectedProfileId = useAppSelector(
     (store) => store.profiles.selectedProfileId,
   );
-
   const hasDoneInitialConfigLoad = useRef(false);
-  const currentToolCallApplyState = useAppSelector(
-    selectCurrentToolCallApplyState,
-  );
 
-  const { mainEditor } = useMainEditor();
+  // Load symbols for chat on any session change
+  const sessionId = useAppSelector((state) => state.session.id);
 
   const handleConfigUpdate = useCallback(
     async (isInitial: boolean, result: FromCoreProtocol["configUpdate"][0]) => {
@@ -87,26 +78,32 @@ function ParallelListeners() {
         setLocalStorage("fontSize", configResult.config.ui.fontSize);
         document.body.style.fontSize = `${configResult.config.ui.fontSize}px`;
       }
+
+      if (
+        configResult.config?.selectedModelByRole.chat?.completionOptions
+          ?.reasoning
+      ) {
+        dispatch(setHasReasoningEnabled(true));
+      }
     },
     [dispatch, hasDoneInitialConfigLoad],
   );
 
-  const initialLoadAuthAndConfig = useCallback(
-    async (initial: boolean) => {
+  // Load config from the IDE
+  useEffect(() => {
+    async function initialLoadConfig() {
+      dispatch(setIsSessionMetadataLoading(true));
+      dispatch(setConfigLoading(true));
       const result = await ideMessenger.request(
         "config/getSerializedProfileInfo",
         undefined,
       );
       if (result.status === "success") {
-        await handleConfigUpdate(initial, result.content);
+        await handleConfigUpdate(true, result.content);
       }
-    },
-    [ideMessenger, handleConfigUpdate],
-  );
-
-  // Load config from the IDE
-  useEffect(() => {
-    void initialLoadAuthAndConfig(true);
+      dispatch(setConfigLoading(false));
+    }
+    void initialLoadConfig();
     const interval = setInterval(() => {
       if (hasDoneInitialConfigLoad.current) {
         // Init to run on initial config load
@@ -117,12 +114,12 @@ function ParallelListeners() {
         // This triggers sending pending status to the GUI for relevant docs indexes
         clearInterval(interval);
       } else {
-        void initialLoadAuthAndConfig(true);
+        void initialLoadConfig();
       }
     }, 2_000);
 
     return () => clearInterval(interval);
-  }, [hasDoneInitialConfigLoad, initialLoadAuthAndConfig, ideMessenger]);
+  }, [hasDoneInitialConfigLoad, ideMessenger]);
 
   useWebviewListener(
     "configUpdate",
@@ -135,8 +132,6 @@ function ParallelListeners() {
     [handleConfigUpdate],
   );
 
-  // Load symbols for chat on any session change
-  const sessionId = useAppSelector((state) => state.session.id);
   useEffect(() => {
     if (sessionId) {
       void dispatch(updateFileSymbolsFromHistory());
@@ -212,16 +207,6 @@ function ParallelListeners() {
     dispatch(setTTSActive(status));
   });
 
-  // TODO - remove?
-  useWebviewListener("submitMessage", async (data) => {
-    void dispatch(
-      streamResponseThunk({
-        editorState: data.message,
-        modifiers: { useCodebase: false, noContext: true },
-      }),
-    );
-  });
-
   useWebviewListener("addContextItem", async (data) => {
     dispatch(
       addContextItemsAtIndex({
@@ -238,42 +223,9 @@ function ParallelListeners() {
   useWebviewListener(
     "updateApplyState",
     async (state) => {
-      if (state.streamId === EDIT_MODE_STREAM_ID) {
-        dispatch(updateEditStateApplyState(state));
-
-        if (state.status === "closed") {
-          dispatch(exitEdit({}));
-        }
-      } else {
-        // chat or agent
-        dispatch(updateApplyState(state));
-
-        // Handle apply status updates that are associated with current tool call
-        if (
-          state.status === "closed" &&
-          currentToolCallApplyState &&
-          currentToolCallApplyState.streamId === state.streamId
-        ) {
-          // const output: ContextItem = {
-          //   name: "Edit tool output",
-          //   content: "Completed edit",
-          //   description: "",
-          // };
-          dispatch(
-            acceptToolCall({
-              toolCallId: currentToolCallApplyState.toolCallId!,
-            }),
-          );
-          // dispatch(setToolCallOutput([]));
-          void dispatch(
-            streamResponseAfterToolCall({
-              toolCallId: currentToolCallApplyState.toolCallId!,
-            }),
-          );
-        }
-      }
+      void dispatch(handleApplyStateUpdate(state));
     },
-    [currentToolCallApplyState, history],
+    [],
   );
 
   useEffect(() => {
@@ -281,6 +233,10 @@ function ParallelListeners() {
       dispatch(setLastNonEditSessionEmpty(history.length === 0));
     }
   }, [isInEdit, history]);
+
+  useEffect(() => {
+    migrateLocalStorage(dispatch);
+  }, []);
 
   return <></>;
 }

@@ -8,7 +8,6 @@ import { EXTENSION_NAME } from "core/control-plane/env";
 import { Core } from "core/core";
 import { walkDirAsync } from "core/indexing/walkDir";
 import { isModelInstaller } from "core/llm";
-import { extractMinimalStackTraceInfo } from "core/util/extractMinimalStackTraceInfo";
 import { startLocalOllama } from "core/util/ollamaHelper";
 import { getConfigJsonPath, getConfigYamlPath } from "core/util/paths";
 import { Telemetry } from "core/util/posthog";
@@ -17,17 +16,22 @@ import * as YAML from "yaml";
 
 import { convertJsonToYamlConfig } from "../../../packages/config-yaml/dist";
 
+import { NextEditLoggingService } from "core/nextEdit/NextEditLoggingService";
 import {
   getAutocompleteStatusBarDescription,
   getAutocompleteStatusBarTitle,
+  getNextEditMenuItems,
   getStatusBarStatus,
   getStatusBarStatusFromQuickPickItemLabel,
+  handleNextEditToggle,
+  isNextEditToggleLabel,
   quickPickStatusText,
   setupStatusBar,
   StatusBarStatus,
 } from "./autocomplete/statusBar";
 import { ContinueConsoleWebviewViewProvider } from "./ContinueConsoleWebviewViewProvider";
 import { ContinueGUIWebviewViewProvider } from "./ContinueGUIWebviewViewProvider";
+import { processDiff } from "./diff/processDiff";
 import { VerticalDiffManager } from "./diff/vertical/manager";
 import EditDecorationManager from "./quickEdit/EditDecorationManager";
 import { QuickEdit, QuickEditShowParams } from "./quickEdit/QuickEditQuickPick";
@@ -86,56 +90,6 @@ function hideGUI() {
   }
 }
 
-async function processDiff(
-  action: "accept" | "reject",
-  sidebar: ContinueGUIWebviewViewProvider,
-  ide: VsCodeIde,
-  core: Core,
-  verticalDiffManager: VerticalDiffManager,
-  newFileUri?: string,
-  streamId?: string,
-  toolCallId?: string,
-) {
-  captureCommandTelemetry(`${action}Diff`);
-
-  const currentFile = await ide.getCurrentFile();
-
-  let newOrCurrentUri = newFileUri;
-  if (!newOrCurrentUri) {
-    newOrCurrentUri = currentFile?.path;
-  }
-  if (!newOrCurrentUri) {
-    console.warn(
-      `No file provided or current file open while attempting to resolve diff`,
-    );
-    return;
-  }
-
-  await ide.openFile(newOrCurrentUri);
-
-  // Clear vertical diffs depending on action
-  verticalDiffManager.clearForfileUri(newOrCurrentUri, action === "accept");
-  if (action === "reject") {
-    core.invoke("cancelApply", undefined);
-  }
-
-  if (streamId) {
-    const fileContent = await ide.readFile(newOrCurrentUri);
-
-    await sidebar.webviewProtocol.request("updateApplyState", {
-      fileContent,
-      filepath: newOrCurrentUri,
-      streamId,
-      status: "closed",
-      numDiffs: 0,
-      toolCallId,
-    });
-  }
-
-  // Save the file
-  await ide.saveFile(newOrCurrentUri);
-}
-
 function waitForSidebarReady(
   sidebar: ContinueGUIWebviewViewProvider,
   timeout: number,
@@ -191,14 +145,12 @@ const getCommandsMap: (
    *
    * @param  promptName - The key for the prompt in the context menu configuration.
    * @param  fallbackPrompt - The prompt to use if the configured prompt is not available.
-   * @param  [onlyOneInsertion] - Optional. If true, only one insertion will be made.
    * @param  [range] - Optional. The range to edit if provided.
    * @returns
    */
   async function streamInlineEdit(
     promptName: keyof ContextMenuConfig,
     fallbackPrompt: string,
-    onlyOneInsertion?: boolean,
     range?: vscode.Range,
   ) {
     const { config } = await configHandler.loadConfig();
@@ -219,15 +171,15 @@ const getCommandsMap: (
       input:
         config.experimental?.contextMenuPrompts?.[promptName] ?? fallbackPrompt,
       llm,
-      onlyOneInsertion,
       range,
       rulesToInclude: config.rules,
     });
   }
 
   return {
-    "continue.acceptDiff": async (newFileUri?: string, streamId?: string) =>
-      processDiff(
+    "continue.acceptDiff": async (newFileUri?: string, streamId?: string) => {
+      captureCommandTelemetry("acceptDiff");
+      void processDiff(
         "accept",
         sidebar,
         ide,
@@ -235,10 +187,12 @@ const getCommandsMap: (
         verticalDiffManager,
         newFileUri,
         streamId,
-      ),
+      );
+    },
 
-    "continue.rejectDiff": async (newFileUri?: string, streamId?: string) =>
-      processDiff(
+    "continue.rejectDiff": async (newFileUri?: string, streamId?: string) => {
+      captureCommandTelemetry("rejectDiff");
+      void processDiff(
         "reject",
         sidebar,
         ide,
@@ -246,7 +200,8 @@ const getCommandsMap: (
         verticalDiffManager,
         newFileUri,
         streamId,
-      ),
+      );
+    },
     "continue.acceptVerticalDiffBlock": (fileUri?: string, index?: number) => {
       captureCommandTelemetry("acceptVerticalDiffBlock");
       verticalDiffManager.acceptRejectVerticalDiffBlock(true, fileUri, index);
@@ -288,7 +243,7 @@ const getCommandsMap: (
     ) => {
       captureCommandTelemetry("customQuickActionStreamInlineEdit");
 
-      streamInlineEdit("docstring", prompt, false, range);
+      streamInlineEdit("docstring", prompt, range);
     },
     "continue.codebaseForceReIndex": async () => {
       core.invoke("index/forceReIndex", undefined);
@@ -389,6 +344,11 @@ const getCommandsMap: (
       editDecorationManager.clear();
       void sidebar.webviewProtocol?.request("exitEditMode", undefined);
     },
+    "continue.generateRule": async () => {
+      captureCommandTelemetry("generateRule");
+      focusGUI();
+      void sidebar.webviewProtocol?.request("generateRule", undefined);
+    },
     "continue.writeCommentsForCode": async () => {
       captureCommandTelemetry("writeCommentsForCode");
 
@@ -400,10 +360,9 @@ const getCommandsMap: (
     "continue.writeDocstringForCode": async () => {
       captureCommandTelemetry("writeDocstringForCode");
 
-      streamInlineEdit(
+      void streamInlineEdit(
         "docstring",
         "Write a docstring for this code. Do not change anything about the code itself.",
-        true,
       );
     },
     "continue.fixCode": async () => {
@@ -588,6 +547,18 @@ const getCommandsMap: (
     ) => {
       completionProvider.accept(completionId);
     },
+    "continue.logNextEditOutcomeAccept": (
+      completionId: string,
+      nextEditLoggingService: NextEditLoggingService,
+    ) => {
+      nextEditLoggingService.accept(completionId);
+    },
+    "continue.logNextEditOutcomeReject": (
+      completionId: string,
+      nextEditLoggingService: NextEditLoggingService,
+    ) => {
+      nextEditLoggingService.reject(completionId);
+    },
     "continue.toggleTabAutocompleteEnabled": () => {
       captureCommandTelemetry("toggleTabAutocompleteEnabled");
 
@@ -624,6 +595,18 @@ const getCommandsMap: (
         }
       }
     },
+    "continue.forceAutocomplete": async () => {
+      captureCommandTelemetry("forceAutocomplete");
+
+      // 1. Explicitly hide any existing suggestion. This clears VS Code's cache for the current position.
+      await vscode.commands.executeCommand("editor.action.inlineSuggest.hide");
+
+      // 2. Now trigger a new one. VS Code has no cached suggestion, so it's forced to call our provider.
+      await vscode.commands.executeCommand(
+        "editor.action.inlineSuggest.trigger",
+      );
+    },
+
     "continue.openTabAutocompleteConfigMenu": async () => {
       captureCommandTelemetry("openTabAutocompleteConfigMenu");
 
@@ -659,6 +642,8 @@ const getCommandsMap: (
             : StatusBarStatus.Disabled;
       }
 
+      const nextEditEnabled = config.get<boolean>("enableNextEdit") ?? false;
+
       quickPick.items = [
         {
           label: "$(gear) Open settings",
@@ -677,6 +662,7 @@ const getCommandsMap: (
           description:
             getMetaKeyLabel() + " + K, " + getMetaKeyLabel() + " + A",
         },
+        ...getNextEditMenuItems(currentStatus, nextEditEnabled),
         {
           kind: vscode.QuickPickItemKind.Separator,
           label: "Switch model",
@@ -698,6 +684,8 @@ const getCommandsMap: (
             targetStatus === StatusBarStatus.Enabled,
             vscode.ConfigurationTarget.Global,
           );
+        } else if (isNextEditToggleLabel(selectedOption)) {
+          handleNextEditToggle(selectedOption, config);
         } else if (
           autocompleteModels.some((model) => model.title === selectedOption)
         ) {
@@ -812,45 +800,43 @@ const getCommandsMap: (
         );
       }
     },
+    "continue.toggleNextEditEnabled": async () => {
+      captureCommandTelemetry("toggleNextEditEnabled");
+
+      const config = vscode.workspace.getConfiguration(EXTENSION_NAME);
+      const tabAutocompleteEnabled = config.get<boolean>(
+        "enableTabAutocomplete",
+      );
+
+      if (!tabAutocompleteEnabled) {
+        vscode.window.showInformationMessage(
+          "Please enable tab autocomplete first to use Next Edit",
+        );
+        return;
+      }
+
+      const nextEditEnabled = config.get<boolean>("enableNextEdit") ?? false;
+
+      // updateNextEditState in VsCodeExtension.ts will handle the validation.
+      config.update(
+        "enableNextEdit",
+        !nextEditEnabled,
+        vscode.ConfigurationTarget.Global,
+      );
+    },
+    "continue.forceNextEdit": async () => {
+      captureCommandTelemetry("forceNextEdit");
+
+      // This is basically the same logic as forceAutocomplete.
+      // I'm writing a new command KV pair here in case we diverge in features.
+
+      await vscode.commands.executeCommand("editor.action.inlineSuggest.hide");
+
+      await vscode.commands.executeCommand(
+        "editor.action.inlineSuggest.trigger",
+      );
+    },
   };
-};
-
-const registerCopyBufferService = (
-  context: vscode.ExtensionContext,
-  core: Core,
-) => {
-  const typeDisposable = vscode.commands.registerCommand(
-    "editor.action.clipboardCopyAction",
-    async (arg) => doCopy(typeDisposable),
-  );
-
-  async function doCopy(typeDisposable: any) {
-    typeDisposable.dispose(); // must dispose to avoid endless loops
-
-    await vscode.commands.executeCommand("editor.action.clipboardCopyAction");
-
-    const clipboardText = await vscode.env.clipboard.readText();
-
-    if (clipboardText) {
-      core.invoke("clipboardCache/add", {
-        content: clipboardText,
-      });
-    }
-
-    await context.workspaceState.update("continue.copyBuffer", {
-      text: clipboardText,
-      copiedAt: new Date().toISOString(),
-    });
-
-    // re-register to continue intercepting copy commands
-    typeDisposable = vscode.commands.registerCommand(
-      "editor.action.clipboardCopyAction",
-      async () => doCopy(typeDisposable),
-    );
-    context.subscriptions.push(typeDisposable);
-  }
-
-  context.subscriptions.push(typeDisposable);
 };
 
 async function installModelWithProgress(
@@ -921,22 +907,6 @@ export function registerAllCommands(
   )) {
     context.subscriptions.push(
       vscode.commands.registerCommand(command, callback),
-    );
-  }
-
-  try {
-    registerCopyBufferService(context, core);
-  } catch (e: any) {
-    //Non-critical error, it needs to be intercepted and not prevent the extension from starting
-    console.log("Error registering CopyBufferService: ", e);
-    Telemetry.capture(
-      "vscode_extension_copy_buffer_failure",
-      {
-        stack: extractMinimalStackTraceInfo(e.stack),
-        message: e.message,
-      },
-      false,
-      true,
     );
   }
 }

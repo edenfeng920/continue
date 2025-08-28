@@ -1,4 +1,5 @@
 import { parseProxyModelName } from "@continuedev/config-yaml";
+import { ModelDescription } from "..";
 
 export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
   {
@@ -19,9 +20,12 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
         "claude-3-7",
         "claude-3.7",
         "claude-sonnet-4",
+        "claude-4-sonnet",
         "gpt-4",
         "o3",
         "gemini",
+        "claude-opus-4",
+        "gemma",
       ].some((part) => model.toLowerCase().startsWith(part));
     },
     anthropic: (model) => {
@@ -32,6 +36,8 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
           "claude-3-7",
           "claude-3.7",
           "claude-sonnet-4",
+          "claude-4-sonnet",
+          "claude-opus-4",
         ].some((part) => model.toLowerCase().startsWith(part))
       ) {
         return true;
@@ -48,13 +54,31 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
       return false;
     },
     openai: (model) => {
+      const lower = model.toLowerCase();
       // https://platform.openai.com/docs/guides/function-calling#models-supporting-function-calling
       if (
-        model.toLowerCase().startsWith("gpt-4") ||
-        model.toLowerCase().startsWith("o3")
+        lower.startsWith("gpt-4") ||
+        lower.startsWith("gpt-5") ||
+        lower.startsWith("o3")
       ) {
         return true;
       }
+
+      // LGAI EXAONE models expose an OpenAI-compatible API with tool
+      // calling support when served via frameworks like vLLM
+      if (lower.includes("exaone")) {
+        return true;
+      }
+
+      if (lower.includes("gpt-oss")) {
+        return true;
+      }
+
+      // https://ai.google.dev/gemma/docs/capabilities/function-calling
+      if (lower.startsWith("gemma")) {
+        return true;
+      }
+
       // firworks-ai https://docs.fireworks.ai/guides/function-calling
       if (model.startsWith("accounts/fireworks/models/")) {
         switch (model.substring(26)) {
@@ -71,27 +95,36 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
 
       return false;
     },
+    cohere: (model) => {
+      return model.toLowerCase().startsWith("command");
+    },
     gemini: (model) => {
       // All gemini models support function calling
       return model.toLowerCase().includes("gemini");
     },
     vertexai: (model) => {
+      const lowerCaseModel = model.toLowerCase();
       // All gemini models except flash 2.0 lite support function calling
-      return (
-        model.toLowerCase().includes("gemini") &&
-        !model.toLowerCase().includes("lite")
-      );
+      if (lowerCaseModel.includes("lite")) {
+        return false;
+      }
+      return ["claude", "gemini"].some((val) => lowerCaseModel.includes(val));
     },
     bedrock: (model) => {
-      // For Bedrock, only support Claude Sonnet models with versions 3.5/3-5 and 3.7/3-7
       if (
-        model.toLowerCase().includes("sonnet") &&
         [
-          "claude-3-5",
-          "claude-3.5",
-          "claude-3-7",
-          "claude-3.7",
+          "claude-3-5-sonnet",
+          "claude-3.5-sonnet",
+          "claude-3-7-sonnet",
+          "claude-3.7-sonnet",
           "claude-sonnet-4",
+          "claude-4-sonnet",
+          "claude-opus-4",
+          "nova-lite",
+          "nova-pro",
+          "nova-micro",
+          "nova-premier",
+          "gpt-oss",
         ].some((part) => model.toLowerCase().includes(part))
       ) {
         return true;
@@ -144,6 +177,7 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
           "qwen3",
           "mixtral",
           "command-r",
+          "command-a",
           "smollm2",
           "hermes3",
           "athene-v2",
@@ -155,6 +189,8 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
           "firefunction-v2",
           "mistral",
           "devstral",
+          "exaone",
+          "gpt-oss",
         ].some((part) => modelName.toLowerCase().includes(part))
       ) {
         return true;
@@ -175,7 +211,9 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
       return false;
     },
     deepseek: (model) => {
-      if (model !== "deepseek-reasoner") {
+      // https://api-docs.deepseek.com/quick_start/pricing
+      // https://api-docs.deepseek.com/guides/function_calling
+      if (model === "deepseek-reasoner" || model === "deepseek-chat") {
         return true;
       }
 
@@ -202,6 +240,13 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
     },
     openrouter: (model) => {
       // https://openrouter.ai/models?fmt=cards&supported_parameters=tools
+
+      // Specific free models that don't support tools
+      // Fixes issue #6619 - moonshotai/kimi-k2:free causing 400 errors
+      if (model.toLowerCase() === "moonshotai/kimi-k2:free") {
+        return false;
+      }
+
       if (
         ["vision", "math", "guard", "mistrallite", "mistral-openorca"].some(
           (part) => model.toLowerCase().includes(part),
@@ -216,6 +261,7 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
         "openai/o1",
         "openai/o3",
         "openai/o4",
+        "openai/gpt-oss",
         "anthropic/claude-3",
         "anthropic/claude-4",
         "microsoft/phi-3",
@@ -226,6 +272,7 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
         "qwen/qwen3",
         "qwen/qwen-",
         "cohere/command-r",
+        "cohere/command-a",
         "ai21/jamba-1.6",
         "mistralai/mistral",
         "mistralai/ministral",
@@ -240,6 +287,7 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
         "deepseek/deepseek-chat",
         "meta-llama/llama-4",
         "all-hands/openhands-lm-32b",
+        "lgai-exaone/exaone",
       ];
       for (const prefix of supportedPrefixes) {
         if (model.toLowerCase().startsWith(prefix)) {
@@ -255,6 +303,7 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
         "meta-llama/llama-3-70b-instruct",
         "arcee-ai/caller-large",
         "nousresearch/hermes-3-llama-3.1-70b",
+        "moonshotai/kimi-k2",
       ];
       for (const model of specificModels) {
         if (model.toLowerCase() === model) {
@@ -271,4 +320,80 @@ export const PROVIDER_TOOL_SUPPORT: Record<string, (model: string) => boolean> =
 
       return false;
     },
+    moonshot: (model) => {
+      // support moonshot models
+      // https://platform.moonshot.ai/docs/pricing/chat#concepts
+      if (
+        model.toLowerCase().startsWith("kimi") &&
+        model.toLowerCase() !== "kimi-thinking-preview"
+      ) {
+        return true;
+      }
+
+      if (model.toLowerCase().startsWith("moonshot")) {
+        return true;
+      }
+
+      return false;
+    },
+    novita: (model) => {
+      const lower = model.toLowerCase();
+
+      // Exact match models
+      const exactMatches = [
+        "deepseek/deepseek-r1-0528",
+        "deepseek/deepseek-r1-turbo",
+        "deepseek/deepseek-v3-0324",
+        "deepseek/deepseek-v3-turbo",
+        "meta-llama/llama-3.3-70b-instruct",
+        "qwen/qwen-2.5-72b-instruct",
+        "zai-org/glm-4.5",
+        "moonshotai/kimi-k2-instruct",
+      ];
+
+      if (exactMatches.includes(lower)) {
+        return true;
+      }
+
+      // Prefix match models
+      const prefixMatches = ["qwen/qwen3", "openai/gpt-oss"];
+
+      for (const prefix of prefixMatches) {
+        if (lower.startsWith(prefix)) {
+          return true;
+        }
+      }
+
+      return false;
+    },
   };
+
+export function isRecommendedAgentModel(modelName: string): boolean {
+  // AND behavior
+  const recs: RegExp[][] = [
+    [/o[134]/],
+    [/deepseek/, /r1|reasoner/],
+    [/gemini/, /2\.5/, /pro/],
+    [/gpt/, /4/],
+    [/gpt-5/],
+    [/claude/, /sonnet/, /3\.5|3\.7|3-5|3-7|-4/],
+    [/claude/, /opus/, /-4/],
+  ];
+  for (const combo of recs) {
+    if (combo.every((regex) => modelName.toLowerCase().match(regex))) {
+      return true;
+    }
+  }
+  return false;
+}
+export function modelSupportsNativeTools(modelDescription: ModelDescription) {
+  if (modelDescription.capabilities?.tools !== undefined) {
+    return modelDescription.capabilities.tools;
+  }
+
+  const providerSupport = PROVIDER_TOOL_SUPPORT[modelDescription.provider];
+  if (!providerSupport) {
+    return false;
+  }
+  return providerSupport(modelDescription.model) ?? false;
+}

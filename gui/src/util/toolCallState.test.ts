@@ -57,6 +57,129 @@ describe("addToolCallDeltaToState", () => {
     expect(result.toolCall.function.name).toBe("searchFiles");
   });
 
+  it("should handle name streaming in full progressive chunks", () => {
+    // Test case where model streams the name progressively but includes full prefix each time
+    // e.g. "readFi" -> "readFil" -> "readFile"
+    const currentState: ToolCallState = {
+      status: "generating",
+      toolCall: {
+        id: "call123",
+        type: "function",
+        function: {
+          name: "readFi",
+          arguments: "{}",
+        },
+      },
+      toolCallId: "call123",
+      parsedArgs: {},
+    };
+
+    const delta: ToolCallDelta = {
+      function: {
+        name: "readFil",
+      },
+    };
+
+    const result = addToolCallDeltaToState(delta, currentState);
+    expect(result.toolCall.function.name).toBe("readFil");
+
+    // Continue the streaming
+    const nextDelta: ToolCallDelta = {
+      function: {
+        name: "readFile",
+      },
+    };
+
+    const finalResult = addToolCallDeltaToState(nextDelta, result);
+    expect(finalResult.toolCall.function.name).toBe("readFile");
+  });
+
+  it("should keep original name when receiving duplicate name chunks", () => {
+    // Test case where model streams the complete name multiple times
+    // e.g. "readFile" -> "readFile" -> "readFile"
+    const currentState: ToolCallState = {
+      status: "generating",
+      toolCall: {
+        id: "call123",
+        type: "function",
+        function: {
+          name: "readFile",
+          arguments: "{}",
+        },
+      },
+      toolCallId: "call123",
+      parsedArgs: {},
+    };
+
+    const delta: ToolCallDelta = {
+      function: {
+        name: "readFile",
+      },
+    };
+
+    const result = addToolCallDeltaToState(delta, currentState);
+    expect(result.toolCall.function.name).toBe("readFile");
+  });
+
+  it("should handle partial name streaming", () => {
+    // Test case where model streams the name in parts
+    // e.g. "read" -> "File"
+    const currentState: ToolCallState = {
+      status: "generating",
+      toolCall: {
+        id: "call123",
+        type: "function",
+        function: {
+          name: "read",
+          arguments: "{}",
+        },
+      },
+      toolCallId: "call123",
+      parsedArgs: {},
+    };
+
+    const delta: ToolCallDelta = {
+      function: {
+        name: "File",
+      },
+    };
+
+    const result = addToolCallDeltaToState(delta, currentState);
+    expect(result.toolCall.function.name).toBe("readFile");
+  });
+
+  it("should ignore new tool calls with different IDs", () => {
+    const currentState: ToolCallState = {
+      status: "generating",
+      toolCall: {
+        id: "call123",
+        type: "function",
+        function: {
+          name: "searchFiles",
+          arguments: '{"query":"test"}',
+        },
+      },
+      toolCallId: "call123",
+      parsedArgs: { query: "test" },
+    };
+
+    const delta: ToolCallDelta = {
+      id: "call456", // Different ID
+      type: "function",
+      function: {
+        name: "readFile",
+        arguments: '{"path":"file.txt"}',
+      },
+    };
+
+    const result = addToolCallDeltaToState(delta, currentState);
+
+    // Should keep the original state and ignore the new call
+    expect(result).toBe(currentState);
+    expect(result.toolCall.id).toBe("call123");
+    expect(result.toolCall.function.name).toBe("searchFiles");
+  });
+
   it("should merge function argument deltas correctly", () => {
     const currentState: ToolCallState = {
       status: "generating",
@@ -355,5 +478,35 @@ describe("addToolCallDeltaToState", () => {
       '{"location":"Paris, France"}',
     );
     expect(currentState.parsedArgs).toEqual({ location: "Paris, France" });
+  });
+
+  it("should handle when args are complete JSON and new deltas arrive", () => {
+    // When args are already a valid JSON object, new deltas should not modify it
+    const currentState: ToolCallState = {
+      status: "generating",
+      toolCall: {
+        id: "call123",
+        type: "function",
+        function: {
+          name: "searchFiles",
+          arguments: '{"query":"test","limit":10}',
+        },
+      },
+      toolCallId: "call123",
+      parsedArgs: { query: "test", limit: 10 },
+    };
+
+    const delta: ToolCallDelta = {
+      function: {
+        arguments: ',"sort":"asc"}',
+      },
+    };
+
+    // The complete JSON should not be modified
+    const result = addToolCallDeltaToState(delta, currentState);
+    expect(result.toolCall.function.arguments).toBe(
+      '{"query":"test","limit":10}',
+    );
+    expect(result.parsedArgs).toEqual({ query: "test", limit: 10 });
   });
 });

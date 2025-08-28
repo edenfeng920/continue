@@ -32,12 +32,14 @@ async function modelConfigToBaseLLM({
   ideSettings,
   llmLogger,
   config,
+  isFromAutoDetect,
 }: {
   model: ModelConfig;
   uniqueId: string;
   ideSettings: IdeSettings;
   llmLogger: ILLMLogger;
   config: ContinueConfig;
+  isFromAutoDetect?: boolean;
 }): Promise<BaseLLM | undefined> {
   const cls = getModelClass(model);
 
@@ -63,11 +65,15 @@ async function modelConfigToBaseLLM({
     template: model.promptTemplates?.chat,
     promptTemplates: model.promptTemplates,
     baseAgentSystemMessage: model.chatOptions?.baseAgentSystemMessage,
+    basePlanSystemMessage: model.chatOptions?.basePlanSystemMessage,
     baseChatSystemMessage: model.chatOptions?.baseSystemMessage,
     capabilities: {
       tools: model.capabilities?.includes("tool_use"),
       uploadImage: model.capabilities?.includes("image_input"),
+      nextEdit: model.capabilities?.includes("next_edit"),
     },
+    autocompleteOptions: model.autocompleteOptions,
+    isFromAutoDetect,
   };
 
   // Model capabilities - need to be undefined if not found
@@ -125,6 +131,12 @@ async function modelConfigToBaseLLM({
   if ("profile" in env && typeof env.profile === "string") {
     options.profile = env.profile;
   }
+  if ("accessKeyId" in env && typeof env.accessKeyId === "string") {
+    options.accessKeyId = env.accessKeyId;
+  }
+  if ("secretAccessKey" in env && typeof env.secretAccessKey === "string") {
+    options.secretAccessKey = env.secretAccessKey;
+  }
   if ("modelArn" in env && typeof env.modelArn === "string") {
     options.modelArn = env.modelArn;
   }
@@ -164,7 +176,6 @@ async function autodetectModels({
         if (modelName === AUTODETECT) {
           return undefined;
         }
-
         return await modelConfigToBaseLLM({
           model: {
             ...model,
@@ -175,6 +186,7 @@ async function autodetectModels({
           ideSettings,
           llmLogger,
           config,
+          isFromAutoDetect: true,
         });
       }),
     );

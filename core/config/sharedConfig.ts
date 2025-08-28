@@ -19,6 +19,10 @@ export const sharedConfigSchema = z
     readResponseTTS: z.boolean(),
     promptPath: z.string(),
     useCurrentFileAsContext: z.boolean(),
+    enableExperimentalTools: z.boolean(),
+    onlyUseSystemMessageTools: z.boolean(),
+    codebaseToolCallingOnly: z.boolean(),
+    enableStaticContextualization: z.boolean(),
 
     // `ui` in `ContinueConfig`
     showSessionTabs: z.boolean(),
@@ -28,6 +32,7 @@ export const sharedConfigSchema = z
     displayRawMarkdown: z.boolean(),
     showChatScrollbar: z.boolean(),
     autoAcceptEditToolDiffs: z.boolean(),
+    continueAfterToolRejection: z.boolean(),
 
     // `tabAutocompleteOptions` in `ContinueConfig`
     useAutocompleteCache: z.boolean(),
@@ -154,9 +159,20 @@ export function modifyAnyConfigWithSharedConfig<
     configCopy.ui.showSessionTabs = sharedConfig.showSessionTabs;
   }
 
+  if (sharedConfig.continueAfterToolRejection !== undefined) {
+    configCopy.ui.continueAfterToolRejection =
+      sharedConfig.continueAfterToolRejection;
+  }
+
   configCopy.experimental = {
     ...configCopy.experimental,
   };
+
+  if (sharedConfig.enableExperimentalTools !== undefined) {
+    configCopy.experimental.enableExperimentalTools =
+      sharedConfig.enableExperimentalTools;
+  }
+
   if (sharedConfig.promptPath !== undefined) {
     configCopy.experimental.promptPath = sharedConfig.promptPath;
   }
@@ -170,6 +186,20 @@ export function modifyAnyConfigWithSharedConfig<
   if (sharedConfig.useCurrentFileAsContext !== undefined) {
     configCopy.experimental.useCurrentFileAsContext =
       sharedConfig.useCurrentFileAsContext;
+  }
+
+  if (sharedConfig.onlyUseSystemMessageTools !== undefined) {
+    configCopy.experimental.onlyUseSystemMessageTools =
+      sharedConfig.onlyUseSystemMessageTools;
+  }
+
+  if (sharedConfig.codebaseToolCallingOnly !== undefined) {
+    configCopy.experimental.codebaseToolCallingOnly =
+      sharedConfig.codebaseToolCallingOnly;
+  }
+  if (sharedConfig.enableStaticContextualization !== undefined) {
+    configCopy.experimental.enableStaticContextualization =
+      sharedConfig.enableStaticContextualization;
   }
 
   return configCopy;

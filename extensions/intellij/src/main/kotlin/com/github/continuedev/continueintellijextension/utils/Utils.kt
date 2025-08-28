@@ -1,5 +1,6 @@
 package com.github.continuedev.continueintellijextension.utils
 
+import com.github.continuedev.continueintellijextension.FimResult
 import com.intellij.openapi.vfs.VirtualFile
 import java.net.NetworkInterface
 import java.util.*
