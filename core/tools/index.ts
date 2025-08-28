@@ -1,34 +1,53 @@
 import { ConfigDependentToolParams, Tool } from "..";
-import { createNewFileTool } from "./definitions/createNewFile";
-import { createRuleBlock } from "./definitions/createRuleBlock";
-import { editFileTool } from "./definitions/editFile";
-import { globSearchTool } from "./definitions/globSearch";
-import { grepSearchTool } from "./definitions/grepSearch";
-import { lsTool } from "./definitions/lsTool";
-import { readCurrentlyOpenFileTool } from "./definitions/readCurrentlyOpenFile";
-import { readFileTool } from "./definitions/readFile";
-import { requestRuleTool } from "./definitions/requestRule";
-import { runTerminalCommandTool } from "./definitions/runTerminalCommand";
-import { searchWebTool } from "./definitions/searchWeb";
-import { viewDiffTool } from "./definitions/viewDiff";
+import * as toolDefinitions from "./definitions";
 
-export const baseToolDefinitions = [
-  readFileTool,
-  editFileTool,
-  createNewFileTool,
-  runTerminalCommandTool,
-  grepSearchTool,
-  globSearchTool,
-  searchWebTool,
-  viewDiffTool,
-  readCurrentlyOpenFileTool,
-  lsTool,
-  createRuleBlock,
-  // replacing with ls tool for now
-  // viewSubdirectoryTool,
-  // viewRepoMapTool,
+// I'm writing these as functions because we've messed up 3 TIMES by pushing to const, causing duplicate tool definitions on subsequent config loads.
+export const getBaseToolDefinitions = () => [
+  toolDefinitions.readFileTool,
+  toolDefinitions.createNewFileTool,
+  toolDefinitions.runTerminalCommandTool,
+  toolDefinitions.globSearchTool,
+  toolDefinitions.viewDiffTool,
+  toolDefinitions.readCurrentlyOpenFileTool,
+  toolDefinitions.lsTool,
+  toolDefinitions.createRuleBlock,
+  toolDefinitions.fetchUrlContentTool,
+  toolDefinitions.singleFindAndReplaceTool,
 ];
 
 export const getConfigDependentToolDefinitions = (
   params: ConfigDependentToolParams,
-): Tool[] => [requestRuleTool(params)];
+): Tool[] => {
+  const { modelName, isSignedIn, enableExperimentalTools, isRemote } = params;
+  const tools: Tool[] = [];
+
+  tools.push(toolDefinitions.requestRuleTool(params));
+
+  if (isSignedIn) {
+    // Web search is only available for signed-in users
+    tools.push(toolDefinitions.searchWebTool);
+  }
+
+  if (enableExperimentalTools) {
+    tools.push(
+      toolDefinitions.viewRepoMapTool,
+      toolDefinitions.viewSubdirectoryTool,
+      toolDefinitions.codebaseTool,
+    );
+  }
+
+  // OLD SEARCH AND REPLACE IS CURRENTLY NOT USED
+  // toolDefinitions.searchAndReplaceInFileTool
+  if (modelName?.includes("claude") || modelName?.includes("gpt-5")) {
+    tools.push(toolDefinitions.multiEditTool);
+  } else {
+    tools.push(toolDefinitions.editFileTool);
+  }
+
+  // missing support for remote os calls: https://github.com/microsoft/vscode/issues/252269
+  if (!isRemote) {
+    tools.push(toolDefinitions.grepSearchTool);
+  }
+
+  return tools;
+};

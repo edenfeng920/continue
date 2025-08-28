@@ -4,6 +4,7 @@ import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.github.continuedev.continueintellijextension.auth.AuthListener
 import com.github.continuedev.continueintellijextension.auth.ContinueAuthService
 import com.github.continuedev.continueintellijextension.auth.ControlPlaneSessionInfo
+import com.github.continuedev.continueintellijextension.browser.ContinueBrowserService.Companion.getBrowser
 import com.github.continuedev.continueintellijextension.constants.getContinueGlobalPath
 import com.github.continuedev.continueintellijextension.`continue`.*
 import com.github.continuedev.continueintellijextension.listeners.ContinuePluginSelectionListener
@@ -14,7 +15,6 @@ import com.github.continuedev.continueintellijextension.utils.toUriOrNull
 import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ApplicationNamesInfo
-import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.keymap.KeymapManager
@@ -122,14 +122,10 @@ class ContinuePluginStartupActivity : StartupActivity, DumbAware {
 
     private fun initializePlugin(project: Project) {
         val coroutineScope = CoroutineScope(Dispatchers.IO)
-        val continuePluginService = ServiceManager.getService(
-            project,
-            ContinuePluginService::class.java
-        )
+        val continuePluginService = project.service<ContinuePluginService>()
 
         coroutineScope.launch {
-            val settings =
-                ServiceManager.getService(ContinueExtensionSettings::class.java)
+            val settings = service<ContinueExtensionSettings>()
             if (!settings.continueState.shownWelcomeDialog) {
                 settings.continueState.shownWelcomeDialog = true
                 // Open tutorial file
@@ -217,11 +213,8 @@ class ContinuePluginStartupActivity : StartupActivity, DumbAware {
 
             // Listen for theme changes
             connection.subscribe(LafManagerListener.TOPIC, LafManagerListener {
-                val colors = GetTheme().getTheme();
-                continuePluginService.sendToWebview(
-                    "jetbrains/setColors",
-                    colors
-                )
+                val colors = GetTheme().getTheme()
+                project.getBrowser()?.sendToWebview("jetbrains/setColors", colors)
             })
 
             // Listen for clicking settings button to start the auth flow
@@ -270,7 +263,7 @@ class ContinuePluginStartupActivity : StartupActivity, DumbAware {
 
             EditorFactory.getInstance().eventMulticaster.addSelectionListener(
                 listener,
-                ContinuePluginDisposable.getInstance(project)
+                project.service<ContinuePluginDisposable>()
             )
 
             val coreMessengerManager = CoreMessengerManager(project, ideProtocolClient, coroutineScope)

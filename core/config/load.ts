@@ -19,7 +19,6 @@ import {
   ContinueRcJson,
   CustomContextProvider,
   EmbeddingsProviderDescription,
-  IContextProvider,
   IDE,
   IdeInfo,
   IdeSettings,
@@ -30,26 +29,19 @@ import {
   ModelDescription,
   RerankerDescription,
   SerializedContinueConfig,
-  SlashCommand,
+  SlashCommandWithSource,
 } from "..";
-import {
-  slashCommandFromDescription,
-  slashFromCustomCommand,
-} from "../commands/index";
+import { getLegacyBuiltInSlashCommandFromDescription } from "../commands/slash/built-in-legacy";
+import { convertCustomCommandToSlashCommand } from "../commands/slash/customSlashCommand";
+import { slashCommandFromPromptFile } from "../commands/slash/promptFileSlashCommand";
 import { MCPManagerSingleton } from "../context/mcp/MCPManagerSingleton";
-import CodebaseContextProvider from "../context/providers/CodebaseContextProvider";
-import ContinueProxyContextProvider from "../context/providers/ContinueProxyContextProvider";
-import CustomContextProviderClass from "../context/providers/CustomContextProvider";
-import FileContextProvider from "../context/providers/FileContextProvider";
-import { contextProviderClassFromName } from "../context/providers/index";
 import { useHub } from "../control-plane/env";
 import { BaseLLM } from "../llm";
 import { LLMClasses, llmFromDescription } from "../llm/llms";
 import CustomLLMClass from "../llm/llms/CustomLLM";
 import { LLMReranker } from "../llm/llms/llm";
 import TransformersJsEmbeddingsProvider from "../llm/llms/TransformersJsEmbeddingsProvider";
-import { slashCommandFromPromptFileV1 } from "../promptFiles/v1/slashCommandFromPromptFile";
-import { getAllPromptFiles } from "../promptFiles/v2/getPromptFiles";
+import { getAllPromptFiles } from "../promptFiles/getPromptFiles";
 import { copyOf } from "../util";
 import { GlobalContext } from "../util/GlobalContext";
 import mergeJson from "../util/merge";
@@ -65,7 +57,11 @@ import {
 } from "../util/paths";
 import { localPathToUri } from "../util/pathToUri";
 
-import { baseToolDefinitions } from "../tools";
+import CustomContextProviderClass from "../context/providers/CustomContextProvider";
+import { getBaseToolDefinitions } from "../tools";
+import { resolveRelativePathInDir } from "../util/ideUtils";
+import { getWorkspaceRcConfigs } from "./json/loadRcConfigs";
+import { loadConfigContextProviders } from "./loadContextProviders";
 import { modifyAnyConfigWithSharedConfig } from "./sharedConfig";
 import {
   getModelByRole,
@@ -174,15 +170,15 @@ async function serializedToIntermediateConfig(
   ide: IDE,
 ): Promise<Config> {
   // DEPRECATED - load custom slash commands
-  const slashCommands: SlashCommand[] = [];
+  const slashCommands: SlashCommandWithSource[] = [];
   for (const command of initial.slashCommands || []) {
-    const newCommand = slashCommandFromDescription(command);
+    const newCommand = getLegacyBuiltInSlashCommandFromDescription(command);
     if (newCommand) {
       slashCommands.push(newCommand);
     }
   }
   for (const command of initial.customCommands || []) {
-    slashCommands.push(slashFromCustomCommand(command));
+    slashCommands.push(convertCustomCommandToSlashCommand(command));
   }
 
   // DEPRECATED - load slash commands from v1 prompt files
@@ -194,7 +190,7 @@ async function serializedToIntermediateConfig(
   );
 
   for (const file of promptFiles) {
-    const slashCommand = slashCommandFromPromptFileV1(file.path, file.content);
+    const slashCommand = slashCommandFromPromptFile(file.path, file.content);
     if (slashCommand) {
       slashCommands.push(slashCommand);
     }
@@ -230,7 +226,7 @@ function applyRequestOptionsToModels(
 export function isContextProviderWithParams(
   contextProvider: CustomContextProvider | ContextProviderWithParams,
 ): contextProvider is ContextProviderWithParams {
-  return (contextProvider as ContextProviderWithParams).name !== undefined;
+  return "name" in contextProvider && !!contextProvider.name;
 }
 
 /** Only difference between intermediate and final configs is the `models` array */
@@ -254,7 +250,10 @@ async function intermediateToFinalConfig({
   loadPromptFiles?: boolean;
 }): Promise<{ config: ContinueConfig; errors: ConfigValidationError[] }> {
   const errors: ConfigValidationError[] = [];
-
+  const workspaceDirs = await ide.getWorkspaceDirs();
+  const getUriFromPath = (path: string) => {
+    return resolveRelativePathInDir(path, ide, workspaceDirs);
+  };
   // Auto-detect models
   let models: BaseLLM[] = [];
   await Promise.all(
@@ -263,6 +262,7 @@ async function intermediateToFinalConfig({
         const llm = await llmFromDescription(
           desc,
           ide.readFile.bind(ide),
+          getUriFromPath,
           uniqueId,
           ideSettings,
           llmLogger,
@@ -282,8 +282,10 @@ async function intermediateToFinalConfig({
                     ...desc,
                     model: modelName,
                     title: modelName,
+                    isFromAutoDetect: true,
                   },
                   ide.readFile.bind(ide),
+                  getUriFromPath,
                   uniqueId,
                   ideSettings,
                   llmLogger,
@@ -318,6 +320,7 @@ async function intermediateToFinalConfig({
                     ...desc.options,
                     model: modelName,
                     logger: llmLogger,
+                    isFromAutoDetect: true,
                   },
                 }),
             );
@@ -360,6 +363,7 @@ async function intermediateToFinalConfig({
           const llm = await llmFromDescription(
             desc,
             ide.readFile.bind(ide),
+            getUriFromPath,
             uniqueId,
             ideSettings,
             llmLogger,
@@ -381,56 +385,25 @@ async function intermediateToFinalConfig({
 
   applyRequestOptionsToModels(tabAutocompleteModels, config);
 
-  // These context providers are always included, regardless of what, if anything,
-  // the user has configured in config.json
+  // Load context providers
+  const { providers: contextProviders, errors: contextErrors } =
+    loadConfigContextProviders(
+      config.contextProviders
+        ?.filter((cp) => isContextProviderWithParams(cp))
+        .map((cp) => ({
+          provider: (cp as ContextProviderWithParams).name,
+          params: (cp as ContextProviderWithParams).params,
+        })),
+      !!config.docs?.length,
+      ideInfo.ideType,
+    );
 
-  const codebaseContextParams =
-    (
-      (config.contextProviders || [])
-        .filter(isContextProviderWithParams)
-        .find((cp) => cp.name === "codebase") as
-        | ContextProviderWithParams
-        | undefined
-    )?.params || {};
-
-  const DEFAULT_CONTEXT_PROVIDERS = [
-    new FileContextProvider({}),
-    // Add codebase provider if indexing is enabled
-    ...(!config.disableIndexing
-      ? [new CodebaseContextProvider(codebaseContextParams)]
-      : []),
-  ];
-
-  const DEFAULT_CONTEXT_PROVIDERS_TITLES = DEFAULT_CONTEXT_PROVIDERS.map(
-    ({ description: { title } }) => title,
-  );
-
-  // Context providers
-  const contextProviders: IContextProvider[] = DEFAULT_CONTEXT_PROVIDERS;
-
-  for (const provider of config.contextProviders || []) {
-    if (isContextProviderWithParams(provider)) {
-      const cls = contextProviderClassFromName(provider.name) as any;
-      if (!cls) {
-        if (!DEFAULT_CONTEXT_PROVIDERS_TITLES.includes(provider.name)) {
-          console.warn(`Unknown context provider ${provider.name}`);
-        }
-
-        continue;
-      }
-      const instance: IContextProvider = new cls(provider.params);
-
-      // Handle continue-proxy
-      if (instance.description.title === "continue-proxy") {
-        (instance as ContinueProxyContextProvider).workOsAccessToken =
-          workOsAccessToken;
-      }
-
-      contextProviders.push(instance);
-    } else {
-      contextProviders.push(new CustomContextProviderClass(provider));
+  for (const cp of config.contextProviders ?? []) {
+    if (!isContextProviderWithParams(cp)) {
+      contextProviders.push(new CustomContextProviderClass(cp));
     }
   }
+  errors.push(...contextErrors);
 
   // Embeddings Provider
   function getEmbeddingsILLM(
@@ -527,9 +500,9 @@ async function intermediateToFinalConfig({
   const continueConfig: ContinueConfig = {
     ...config,
     contextProviders,
-    tools: [...baseToolDefinitions],
+    tools: getBaseToolDefinitions(),
     mcpServerStatuses: [],
-    slashCommands: config.slashCommands ?? [],
+    slashCommands: [],
     modelsByRole: {
       chat: models,
       edit: models,
@@ -550,6 +523,17 @@ async function intermediateToFinalConfig({
     },
     rules: [],
   };
+
+  for (const cmd of config.slashCommands ?? []) {
+    if ("source" in cmd) {
+      continueConfig.slashCommands.push(cmd);
+    } else {
+      continueConfig.slashCommands.push({
+        ...cmd,
+        source: "config-ts-slash-command",
+      });
+    }
+  }
 
   if (config.systemMessage) {
     continueConfig.rules.unshift({
@@ -634,12 +618,17 @@ function llmToSerializedModelDescription(llm: ILLM): ModelDescription {
     template: llm.template,
     completionOptions: llm.completionOptions,
     baseAgentSystemMessage: llm.baseAgentSystemMessage,
+    basePlanSystemMessage: llm.basePlanSystemMessage,
     baseChatSystemMessage: llm.baseChatSystemMessage,
     requestOptions: llm.requestOptions,
     promptTemplates: serializePromptTemplates(llm.promptTemplates),
     capabilities: llm.capabilities,
     roles: llm.roles,
     configurationStatus: llm.getConfigurationStatus(),
+    apiKeyLocation: llm.apiKeyLocation,
+    envSecretLocations: llm.envSecretLocations,
+    sourceFile: llm.sourceFile,
+    isFromAutoDetect: llm.isFromAutoDetect,
   };
 }
 
@@ -650,9 +639,10 @@ async function finalToBrowserConfig(
   return {
     allowAnonymousTelemetry: final.allowAnonymousTelemetry,
     completionOptions: final.completionOptions,
-    slashCommands: final.slashCommands?.map(
-      ({ run, ...slashCommandDescription }) => slashCommandDescription,
-    ),
+    slashCommands: final.slashCommands?.map(({ run, ...rest }) => ({
+      ...rest,
+      isLegacy: !!run,
+    })),
     contextProviders: final.contextProviders?.map((c) => c.description),
     disableIndexing: final.disableIndexing,
     disableSessionTitles: final.disableSessionTitles,
@@ -863,7 +853,6 @@ async function buildConfigTsandReadConfigJs(ide: IDE, ideType: IdeType) {
 
 async function loadContinueConfigFromJson(
   ide: IDE,
-  workspaceConfigs: ContinueRcJson[],
   ideSettings: IdeSettings,
   ideInfo: IdeInfo,
   uniqueId: string,
@@ -871,6 +860,7 @@ async function loadContinueConfigFromJson(
   workOsAccessToken: string | undefined,
   overrideConfigJson: SerializedContinueConfig | undefined,
 ): Promise<ConfigResult<ContinueConfig>> {
+  const workspaceConfigs = await getWorkspaceRcConfigs(ide);
   // Serialized config
   let {
     config: serialized,
@@ -974,7 +964,6 @@ async function loadContinueConfigFromJson(
 
 export {
   finalToBrowserConfig,
-  intermediateToFinalConfig,
   loadContinueConfigFromJson,
   type BrowserSerializedContinueConfig,
 };

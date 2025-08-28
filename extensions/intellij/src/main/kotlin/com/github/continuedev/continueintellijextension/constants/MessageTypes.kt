@@ -2,11 +2,10 @@ package com.github.continuedev.continueintellijextension.constants
 
 class MessageTypes {
     companion object {
-        val ideMessageTypes = listOf(
+        val IDE_MESSAGE_TYPES = listOf(
             "readRangeInFile",
             "isTelemetryEnabled",
             "getUniqueId",
-            "getWorkspaceConfigs",
             "getDiff",
             "getTerminalContents",
             "getWorkspaceDirs",
@@ -41,11 +40,12 @@ class MessageTypes {
             "getTerminalContents",
             "showToast",
             "openUrl",
-            
+            "isWorkspaceRemote",
+
             // These only come from the GUI for now but should be here to prevent confusion
             "toggleDevTools",
             "showTutorial",
-            
+
             // These are jetbrains only and only come from the GUI for now
             // But again including for consistency
             "copyText",
@@ -83,6 +83,7 @@ class MessageTypes {
             "devdata/log",
             "config/addModel",
             "config/newPromptFile",
+            "config/newAssistantFile",
             "config/ideSettingsUpdate",
             "config/addLocalWorkspaceBlock",
             "config/getSerializedProfileInfo",
@@ -92,6 +93,7 @@ class MessageTypes {
             "config/updateSharedConfig",
             "config/updateSelectedModel",
             "mcp/reloadServer",
+            "mcp/getPrompt",
             "context/getContextItems",
             "context/getSymbolsForFiles",
             "context/loadSubmenuItems",
@@ -101,12 +103,25 @@ class MessageTypes {
             "autocomplete/complete",
             "autocomplete/cancel",
             "autocomplete/accept",
+            "nextEdit/predict",
+            "nextEdit/reject",
+            "nextEdit/accept",
+            "nextEdit/startChain",
+            "nextEdit/deleteChain",
+            "nextEdit/isChainAlive",
+            "nextEdit/queue/getProcessedCount",
+            "nextEdit/queue/dequeueProcessed",
+            "nextEdit/queue/processOne",
+            "nextEdit/queue/clear",
+            "nextEdit/queue/abort",
             "tts/kill",
             "llm/complete",
             "llm/streamChat",
             "llm/listModels",
+            "llm/compileChat",
             "streamDiffLines",
             "chatDescriber/describe",
+            "conversation/compact",
             "stats/getTokensPerDay",
             "stats/getTokensPerModel",
             // Codebase
@@ -120,8 +135,9 @@ class MessageTypes {
             "indexing/setPaused",
             "docs/initStatuses",
             "docs/getDetails",
+            "docs/getIndexedPages",
             //
-            "completeOnboarding",
+            "onboarding/complete",
             "addAutocompleteModel",
             "didChangeSelectedProfile",
             "didChangeSelectedOrg",

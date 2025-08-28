@@ -32,7 +32,9 @@ class Autocomplete {
     }
 
     @AfterEach
-    fun closeProject(remoteRobot: RemoteRobot) = CommonSteps(remoteRobot).closeProject()
+    fun closeProject(remoteRobot: RemoteRobot) {
+        CommonSteps(remoteRobot).closeProject()
+    }
 
     @Test
     @Video
@@ -50,7 +52,7 @@ class Autocomplete {
         // Our "continue_tutorial.java.ft" tab loads first, but then "Main.java" takes focus.
         waitFor(ofSeconds(20)) {
             findAll<ComponentFixture>(
-                byXpath("//div[@accessiblename='Main.java' and @class='SingleHeightLabel']")
+                byXpath("//div[@visible_text='Main.java']")
             ).isNotEmpty()
         }
 

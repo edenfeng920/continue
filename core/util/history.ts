@@ -21,7 +21,7 @@ function safeParseArray<T>(
   }
 }
 
-class HistoryManager {
+export class HistoryManager {
   list(options: ListHistoryOptions): SessionMetadata[] {
     const filepath = getSessionsListPath();
     if (!fs.existsSync(filepath)) {
@@ -30,10 +30,13 @@ class HistoryManager {
     const content = fs.readFileSync(filepath, "utf8");
 
     let sessions = safeParseArray<SessionMetadata>(content) ?? [];
-    sessions = sessions.filter((session: any) => {
-      // Filter out old format
-      return typeof session.session_id !== "string";
-    });
+    sessions = sessions
+      .filter((session: any) => {
+        // Filter out old format
+        return typeof session.session_id !== "string";
+        // Reverse to show newest first; sessions.json is chronological by creation
+      })
+      .reverse();
 
     // Apply limit and offset
     if (options.limit) {

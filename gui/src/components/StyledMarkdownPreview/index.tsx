@@ -21,7 +21,9 @@ import { ToolTip } from "../gui/Tooltip";
 import FilenameLink from "./FilenameLink";
 import "./katex.css";
 import "./markdown.css";
+import MermaidBlock from "./MermaidBlock";
 import { rehypeHighlightPlugin } from "./rehypeHighlightPlugin";
+import { SecureImageComponent } from "./SecureImageComponent";
 import { StepContainerPreToolbar } from "./StepContainerPreToolbar";
 import SymbolLink from "./SymbolLink";
 import { SyntaxHighlightedPre } from "./SyntaxHighlightedPre";
@@ -76,7 +78,7 @@ const StyledMarkdown = styled.div<{
       display: none;
     }
     word-wrap: break-word;
-    border-radius: ${defaultBorderRadius};
+    border-radius: 0.3125rem;
     background-color: ${vscEditorBackground};
     font-size: ${getFontSize() - 2}px;
     font-family: var(--vscode-editor-font-family);
@@ -84,7 +86,6 @@ const StyledMarkdown = styled.div<{
 
   code:not(pre > code) {
     font-family: var(--vscode-editor-font-family);
-    color: var(--vscode-input-placeholderForeground);
   }
 
   background-color: ${(props) => props.bgColor};
@@ -113,12 +114,17 @@ const StyledMarkdown = styled.div<{
     line-height: 1.5;
   }
 
+  * {
+    word-break: break-word;
+  }
+
   > *:last-child {
     margin-bottom: 0;
   }
 `;
 
 interface StyledMarkdownPreviewProps {
+  showToolCallStatusIcon?: boolean;
   source?: string;
   className?: string;
   isRenderingInStepContainer?: boolean; // Currently only used to control the rendering of codeblocks
@@ -126,8 +132,9 @@ interface StyledMarkdownPreviewProps {
   itemIndex?: number;
   useParentBackgroundColor?: boolean;
   disableManualApply?: boolean;
-  forceStreamId?: string;
+  toolCallId?: string;
   expandCodeblocks?: boolean;
+  collapsible?: boolean;
 }
 
 const HLJS_LANGUAGE_CLASSNAME_PREFIX = "language-";
@@ -196,11 +203,6 @@ const StyledMarkdownPreview = memo(function StyledMarkdownPreview(
   const itemIndexRef = useUpdatingRef(props.itemIndex);
 
   const codeblockStreamIds = useRef<string[]>([]);
-  useEffect(() => {
-    if (props.forceStreamId) {
-      codeblockStreamIds.current = [props.forceStreamId];
-    }
-  }, [props.forceStreamId, codeblockStreamIds]);
 
   const [reactContent, setMarkdownSource] = useRemark({
     remarkPlugins: [
@@ -295,12 +297,12 @@ const StyledMarkdownPreview = memo(function StyledMarkdownPreview(
           const isLastCodeblock = preChildProps["data-islastcodeblock"];
 
           if (codeblockStreamIds.current[codeBlockIndex] === undefined) {
-            codeblockStreamIds.current[codeBlockIndex] =
-              props.forceStreamId ?? uuidv4();
+            codeblockStreamIds.current[codeBlockIndex] = uuidv4();
           }
 
           return (
             <StepContainerPreToolbar
+              showToolCallStatusIcon={props.showToolCallStatusIcon}
               codeBlockContent={codeBlockContent}
               itemIndex={itemIndexRef.current}
               codeBlockIndex={codeBlockIndex}
@@ -308,9 +310,11 @@ const StyledMarkdownPreview = memo(function StyledMarkdownPreview(
               relativeFilepath={relativeFilePath}
               isLastCodeblock={isLastCodeblock}
               range={range}
-              codeBlockStreamId={codeblockStreamIds.current[codeBlockIndex]}
+              codeBlockStreamId={codeblockStreamIds.current[codeBlockIndex]} // ignored if toolCallId stream state is found
+              forceToolCallId={props.toolCallId}
               expanded={props.expandCodeblocks}
               disableManualApply={props.disableManualApply}
+              collapsible={props.collapsible}
             >
               <SyntaxHighlightedPre {...preProps} />
             </StepContainerPreToolbar>
@@ -337,7 +341,21 @@ const StyledMarkdownPreview = memo(function StyledMarkdownPreview(
               }
             }
           }
+          if (codeProps.className?.includes("language-mermaid")) {
+            const codeText = String(codeProps.children || "");
+            return <MermaidBlock code={codeText} />;
+          }
           return <code {...codeProps}>{codeProps.children}</code>;
+        },
+        img: ({ ...imgProps }) => {
+          return (
+            <SecureImageComponent
+              src={imgProps.src}
+              alt={imgProps.alt}
+              title={imgProps.title}
+              className={imgProps.className}
+            />
+          );
         },
       },
     },
@@ -352,9 +370,9 @@ const StyledMarkdownPreview = memo(function StyledMarkdownPreview(
 
   const uiConfig = useAppSelector(selectUIConfig);
   const codeWrapState = uiConfig?.codeWrap ? "pre-wrap" : "pre";
+
   return (
     <StyledMarkdown
-      contentEditable="false"
       fontSize={getFontSize()}
       whiteSpace={codeWrapState}
       bgColor={props.useParentBackgroundColor ? "" : vscBackground}

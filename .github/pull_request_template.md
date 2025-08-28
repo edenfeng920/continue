@@ -2,15 +2,20 @@
 
 [ What changed? Feel free to be brief. ]
 
+## AI Code Review
+
+- **Team members only**: AI review runs automatically when PR is opened or marked ready for review
+- Team members can also trigger a review by commenting `@continue-general-review` or `@continue-detailed-review`
+
 ## Checklist
 
 - [] I've read the [contributing guide](https://github.com/continuedev/continue/blob/main/CONTRIBUTING.md)
 - [] The relevant docs, if any, have been updated or created
 - [] The relevant tests, if any, have been updated or created
 
-## Screenshots
+## Screen recording or screenshot
 
-[ For visual changes, include screenshots. Screen recordings are particularly helpful, and appreciated! ]
+[ When applicable, please include a short screen recording or screenshot - this makes it much easier for us as contributors to review and understand your changes. See [this PR](https://github.com/continuedev/continue/pull/6455) as a good example. ]
 
 ## Tests
 

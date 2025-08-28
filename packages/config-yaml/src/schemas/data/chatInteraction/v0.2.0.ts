@@ -13,9 +13,12 @@ export const chatInteractionEventSchema_0_2_0 =
     // other
     prompt: true,
     completion: true,
+    modelName: true,
     modelTitle: true,
     modelProvider: true,
     sessionId: true,
+    tools: true,
+    rules: true,
   });
 
 export const chatInteractionEventSchema_0_2_0_noCode =

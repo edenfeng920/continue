@@ -1,4 +1,5 @@
 import ignore from "ignore";
+import * as URI from "uri-js";
 import { IDE } from "..";
 import {
   DEFAULT_IGNORE_DIRS,
@@ -9,21 +10,22 @@ import { getGlobalFolderWithName } from "../util/paths";
 import { localPathToUri } from "../util/pathToUri";
 import { joinPathsToUri } from "../util/uri";
 
-export const ASSISTANTS = "assistants";
-export const ASSISTANTS_FOLDER = `.continue/${ASSISTANTS}`;
-
-export function isLocalAssistantFile(uri: string): boolean {
+export function isLocalDefinitionFile(uri: string): boolean {
   if (!uri.endsWith(".yaml") && !uri.endsWith(".yml") && !uri.endsWith(".md")) {
     return false;
   }
 
-  const normalizedUri = uri.replace(/\\/g, "/");
-  return normalizedUri.includes(`/${ASSISTANTS_FOLDER}/`);
+  const normalizedUri = URI.normalize(uri);
+  return (
+    normalizedUri.includes(`/.continue/agents/`) ||
+    normalizedUri.includes(`/.continue/assistants/`)
+  );
 }
 
 async function getDefinitionFilesInDir(
   ide: IDE,
   dir: string,
+  fileExtType?: "yaml" | "markdown",
 ): Promise<{ path: string; content: string }[]> {
   try {
     const exists = await ide.fileExists(dir);
@@ -33,16 +35,30 @@ async function getDefinitionFilesInDir(
     }
 
     const overrideDefaultIgnores = ignore()
-      .add(DEFAULT_IGNORE_FILETYPES.filter((t) => t !== "config.yaml"))
+      .add(
+        DEFAULT_IGNORE_FILETYPES.filter(
+          (t) => t !== "config.yaml" && t !== "config.yml",
+        ),
+      )
       .add(DEFAULT_IGNORE_DIRS);
 
     const uris = await walkDir(dir, ide, {
       overrideDefaultIgnores,
       source: "get assistant files",
     });
-    const assistantFilePaths = uris.filter(
-      (p) => p.endsWith(".yaml") || p.endsWith(".yml") || p.endsWith(".md"),
-    );
+    let assistantFilePaths: string[];
+    if (fileExtType === "yaml") {
+      assistantFilePaths = uris.filter(
+        (p) => p.endsWith(".yaml") || p.endsWith(".yml"),
+      );
+    } else if (fileExtType === "markdown") {
+      assistantFilePaths = uris.filter((p) => p.endsWith(".md"));
+    } else {
+      assistantFilePaths = uris.filter(
+        (p) => p.endsWith(".yaml") || p.endsWith(".yml") || p.endsWith(".md"),
+      );
+    }
+
     const results = assistantFilePaths.map(async (uri) => {
       const content = await ide.readFile(uri); // make a try catch
       return { path: uri, content };
@@ -57,6 +73,7 @@ async function getDefinitionFilesInDir(
 export interface LoadAssistantFilesOptions {
   includeGlobal: boolean;
   includeWorkspace: boolean;
+  fileExtType?: "yaml" | "markdown";
 }
 
 export function getDotContinueSubDirs(
@@ -84,7 +101,7 @@ export function getDotContinueSubDirs(
 
 /**
  * This method searches in both ~/.continue and workspace .continue
- * for all YAML files in the specified subdirctory, for example .continue/assistants or .continue/prompts
+ * for all YAML/Markdown files in the specified subdirectory, for example .continue/assistants or .continue/prompts
  */
 export async function getAllDotContinueDefinitionFiles(
   ide: IDE,
@@ -101,15 +118,14 @@ export async function getAllDotContinueDefinitionFiles(
     subDirName,
   );
 
-  // Get all assistant files from the directories
-  const assistantFiles = (
-    await Promise.all(fullDirs.map((dir) => getDefinitionFilesInDir(ide, dir)))
+  // Get all definition files from the directories
+  const definitionFiles = (
+    await Promise.all(
+      fullDirs.map((dir) =>
+        getDefinitionFilesInDir(ide, dir, options.fileExtType),
+      ),
+    )
   ).flat();
 
-  return await Promise.all(
-    assistantFiles.map(async (file) => {
-      const content = await ide.readFile(file.path);
-      return { path: file.path, content };
-    }),
-  );
+  return definitionFiles;
 }
