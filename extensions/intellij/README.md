@@ -16,25 +16,31 @@
 
 <p></p>
 
+<div align="center">
+
 **Ship faster with Continuous AI**
 
-**Build and run custom agents across your IDE, terminal, and CI**
+**The future of coding isn't writing more code. It's delegating the boring parts, so you can build the interesting stuff**
+
+</div>
+
+Get started in [Mission Control](https://hub.continue.dev/agents), [CLI (Headless Mode)](https://docs.continue.dev/cli/quick-start#headless-mode), or [CLI (TUI mode)](https://docs.continue.dev/cli/quick-start#tui-mode)
 
 ## Agent
 
-[Agent](/features/agent/quick-start) to work on development tasks together with AI
+[Agent](https://docs.continue.dev/features/agent/quick-start) to work on development tasks together with AI
 
 ## Chat
 
-[Chat](/features/chat/quick-start) to ask general questions and clarify code sections
+[Chat](https://docs.continue.dev/features/chat/quick-start) to ask general questions and clarify code sections
 
 ## Edit
 
-[Edit](/features/edit/quick-start) to modify a code section without leaving your current file
+[Edit](https://docs.continue.dev/features/edit/quick-start) to modify a code section without leaving your current file
 
 ## Autocomplete
 
-[Autocomplete](/features/autocomplete/quick-start) to receive inline code suggestions as you type
+[Autocomplete](https://docs.continue.dev/features/autocomplete/quick-start) to receive inline code suggestions as you type
 
 </div>
 

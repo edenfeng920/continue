@@ -1,17 +1,21 @@
 import type { ChatHistoryItem, ToolStatus } from "core/index.js";
 import { stripImages } from "core/util/messageContent.js";
 import { createHistoryItem } from "core/util/messageConversion.js";
-import type { ChatCompletionTool } from "openai/resources.mjs";
 
-import { filterExcludedTools } from "../permissions/index.js";
+import { checkToolPermission } from "src/permissions/permissionChecker.js";
+
 import {
-  getServiceSync,
-  MCPServiceState,
-  MCPTool,
   SERVICE_NAMES,
+  serviceContainer,
+  services,
 } from "../services/index.js";
 import type { ToolPermissionServiceState } from "../services/ToolPermissionService.js";
-import { getAllBuiltinTools, ToolCall } from "../tools/index.js";
+import {
+  convertToolToChatCompletionTool,
+  getAllAvailableTools,
+  Tool,
+  ToolCall,
+} from "../tools/index.js";
 import { logger } from "../util/logger.js";
 
 import {
@@ -27,14 +31,23 @@ export async function handleToolCalls(
   callbacks: StreamCallbacks | undefined,
   isHeadless: boolean,
 ): Promise<boolean> {
+  const chatHistorySvc = services.chatHistory;
+  const useService =
+    typeof chatHistorySvc?.isReady === "function" && chatHistorySvc.isReady();
   if (toolCalls.length === 0) {
     if (content) {
-      chatHistory.push(
-        createHistoryItem({
-          role: "assistant",
-          content,
-        }),
-      );
+      if (useService) {
+        // Service-driven: write assistant message via service
+        chatHistorySvc.addAssistantMessage(content);
+      } else {
+        // Fallback only when service is unavailable
+        chatHistory.push(
+          createHistoryItem({
+            role: "assistant",
+            content,
+          }),
+        );
+      }
     }
     return false;
   }
@@ -68,22 +81,35 @@ export async function handleToolCalls(
     })),
   };
 
-  chatHistory.push(createHistoryItem(assistantMessage, [], toolCallStates));
+  if (useService) {
+    // Important: pass ChatCompletion-style toolCalls, not internal ToolCall[]
+    chatHistorySvc.addAssistantMessage(
+      assistantMessage.content || "",
+      assistantMessage.toolCalls,
+    );
+  } else {
+    // Fallback only when service is unavailable
+    chatHistory.push(createHistoryItem(assistantMessage, [], toolCallStates));
+  }
 
   // First preprocess the tool calls
   const { preprocessedCalls, errorChatEntries } =
-    await preprocessStreamedToolCalls(toolCalls, callbacks);
+    await preprocessStreamedToolCalls(isHeadless, toolCalls, callbacks);
 
   // Add any preprocessing errors to chat history
   // Convert error entries from OpenAI format to ChatHistoryItem format
   errorChatEntries.forEach((errorEntry) => {
-    chatHistory.push(
-      createHistoryItem({
-        role: "tool",
-        content: stripImages(errorEntry.content) || "",
-        toolCallId: errorEntry.tool_call_id,
-      }),
-    );
+    const item = createHistoryItem({
+      role: "tool",
+      content: stripImages(errorEntry.content) || "",
+      toolCallId: errorEntry.tool_call_id,
+    });
+    if (useService) {
+      chatHistorySvc.addHistoryItem(item);
+    } else {
+      // Fallback only when service is unavailable
+      chatHistory.push(item);
+    }
   });
 
   // Execute the valid preprocessed tool calls
@@ -97,128 +123,75 @@ export async function handleToolCalls(
     return true; // Signal early return needed
   }
 
-  // Convert tool results from OpenAI format to ChatHistoryItem format
-  // and add them to the chat history
+  // Convert tool results and add them to the chat history with status from execution
   toolResults.forEach((toolResult) => {
-    // Find the corresponding tool call state to update
-    const lastAssistantIndex = chatHistory.findLastIndex(
-      (item) => item.message.role === "assistant" && item.toolCallStates,
-    );
+    const resultContent =
+      typeof toolResult.content === "string" ? toolResult.content : "";
 
-    if (
-      lastAssistantIndex >= 0 &&
-      chatHistory[lastAssistantIndex].toolCallStates
-    ) {
-      const toolState = chatHistory[lastAssistantIndex].toolCallStates.find(
-        (ts) => ts.toolCallId === toolResult.tool_call_id,
+    // Use the status from the tool execution result instead of text matching
+    const status = toolResult.status;
+
+    logger.debug("Tool result status", {
+      status,
+      toolCallId: toolResult.tool_call_id,
+    });
+
+    if (useService) {
+      chatHistorySvc.addToolResult(
+        toolResult.tool_call_id,
+        resultContent,
+        status,
       );
-
-      if (toolState) {
-        toolState.status = hasRejection ? "canceled" : "done";
-        toolState.output = [
-          {
-            content:
-              typeof toolResult.content === "string" ? toolResult.content : "",
-            name: `Tool Result`,
-            description: "Tool execution result",
-          },
-        ];
+    } else {
+      // Fallback only when service is unavailable: update local tool state
+      const lastAssistantIndex = chatHistory.findLastIndex(
+        (item) => item.message.role === "assistant" && item.toolCallStates,
+      );
+      if (
+        lastAssistantIndex >= 0 &&
+        chatHistory[lastAssistantIndex].toolCallStates
+      ) {
+        const toolState = chatHistory[lastAssistantIndex].toolCallStates.find(
+          (ts) => ts.toolCallId === toolResult.tool_call_id,
+        );
+        if (toolState) {
+          toolState.status = status;
+          toolState.output = [
+            {
+              content: resultContent,
+              name: `Tool Result`,
+              description: "Tool execution result",
+            },
+          ];
+        }
       }
     }
   });
   return false;
 }
 
-export async function getAllTools() {
-  // Get all available tool names
-  const allBuiltinTools = getAllBuiltinTools();
-  const builtinToolNames = allBuiltinTools.map((tool) => tool.name);
+export async function getRequestTools(isHeadless: boolean) {
+  const availableTools = await getAllAvailableTools(isHeadless);
 
-  let mcpTools: MCPTool[] = [];
-  let mcpToolNames: string[] = [];
-  const mcpServiceResult = getServiceSync<MCPServiceState>(SERVICE_NAMES.MCP);
-  if (mcpServiceResult.state === "ready") {
-    mcpTools = mcpServiceResult?.value?.tools ?? [];
-    mcpToolNames = mcpTools.map((t) => t.name);
-  } else {
-    // MCP is lazy
-    // throw new Error("MCP Service not initialized");
+  const permissionsState =
+    await serviceContainer.get<ToolPermissionServiceState>(
+      SERVICE_NAMES.TOOL_PERMISSIONS,
+    );
+
+  const allowedTools: Tool[] = [];
+  for (const tool of availableTools) {
+    const result = checkToolPermission(
+      { name: tool.name, arguments: {} },
+      permissionsState.permissions,
+    );
+
+    if (
+      result.permission === "allow" ||
+      (result.permission === "ask" && !isHeadless)
+    ) {
+      allowedTools.push(tool);
+    }
   }
 
-  const allToolNames = [...builtinToolNames, ...mcpToolNames];
-
-  // Check if the ToolPermissionService is ready
-  const permissionsServiceResult = getServiceSync<ToolPermissionServiceState>(
-    SERVICE_NAMES.TOOL_PERMISSIONS,
-  );
-
-  let allowedToolNames: string[];
-  if (
-    permissionsServiceResult.state === "ready" &&
-    permissionsServiceResult.value
-  ) {
-    // Filter out excluded tools based on permissions
-    allowedToolNames = filterExcludedTools(
-      allToolNames,
-      permissionsServiceResult.value.permissions,
-    );
-  } else {
-    // Service not ready - this is a critical error since tools should only be
-    // requested after services are properly initialized
-    logger.error(
-      "ToolPermissionService not ready in getAllTools - this indicates a service initialization timing issue",
-    );
-    throw new Error(
-      "ToolPermissionService not initialized. Services must be initialized before requesting tools.",
-    );
-  }
-
-  const allowedToolNamesSet = new Set(allowedToolNames);
-
-  // Filter builtin tools
-  const allowedBuiltinTools = allBuiltinTools.filter((tool) =>
-    allowedToolNamesSet.has(tool.name),
-  );
-
-  const allTools: ChatCompletionTool[] = allowedBuiltinTools.map((tool) => ({
-    type: "function" as const,
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: {
-        type: "object",
-        properties: Object.fromEntries(
-          Object.entries(tool.parameters).map(([key, param]) => [
-            key,
-            {
-              type: param.type,
-              description: param.description,
-              items: param.items,
-            },
-          ]),
-        ),
-        required: Object.entries(tool.parameters)
-          .filter(([_, param]) => param.required)
-          .map(([key, _]) => key),
-      },
-    },
-  }));
-
-  // Add filtered MCP tools
-  const allowedMcpTools = mcpTools.filter((tool) =>
-    allowedToolNamesSet.has(tool.name),
-  );
-
-  allTools.push(
-    ...allowedMcpTools.map((tool) => ({
-      type: "function" as const,
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.inputSchema,
-      },
-    })),
-  );
-
-  return allTools;
+  return allowedTools.map(convertToolToChatCompletionTool);
 }

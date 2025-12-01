@@ -8,18 +8,20 @@ import type {
   ChatCompletionTool,
 } from "openai/resources.mjs";
 
-import { getServiceSync, SERVICE_NAMES } from "../services/index.js";
-import { systemMessageService } from "../services/SystemMessageService.js";
-import type { ToolPermissionServiceState } from "../services/ToolPermissionService.js";
+import { pruneLastMessage } from "../compaction.js";
+import { services } from "../services/index.js";
+import { posthogService } from "../telemetry/posthogService.js";
 import { telemetryService } from "../telemetry/telemetryService.js";
 import { ToolCall } from "../tools/index.js";
 import {
   chatCompletionStreamWithBackoff,
+  isContextLengthError,
   withExponentialBackoff,
 } from "../util/exponentialBackoff.js";
 import { logger } from "../util/logger.js";
+import { validateContextLength } from "../util/tokenizer.js";
 
-import { getAllTools, handleToolCalls } from "./handleToolCalls.js";
+import { getRequestTools, handleToolCalls } from "./handleToolCalls.js";
 import { handleAutoCompaction } from "./streamChatResponse.autoCompaction.js";
 import {
   processChunkContent,
@@ -129,6 +131,7 @@ interface ProcessStreamingResponseOptions {
 }
 
 // Process a single streaming response and return whether we need to continue
+// eslint-disable-next-line max-statements
 export async function processStreamingResponse(
   options: ProcessStreamingResponseOptions,
 ): Promise<{
@@ -137,18 +140,30 @@ export async function processStreamingResponse(
   toolCalls: ToolCall[];
   shouldContinue: boolean;
 }> {
-  const {
-    chatHistory,
-    model,
-    llmApi,
-    abortController,
-    callbacks,
-    isHeadless,
-    tools,
-  } = options;
+  const { model, llmApi, abortController, callbacks, isHeadless, tools } =
+    options;
+
+  let chatHistory = options.chatHistory;
+
+  // Validate context length before making the request
+  let validation = validateContextLength(chatHistory, model);
+
+  // Prune last messages until valid
+  while (chatHistory.length > 1 && !validation.isValid) {
+    const prunedChatHistory = pruneLastMessage(chatHistory);
+    if (prunedChatHistory.length === chatHistory.length) break;
+    chatHistory = prunedChatHistory;
+    validation = validateContextLength(chatHistory, model);
+  }
+
+  if (!validation.isValid) {
+    throw new Error(`Context length validation failed: ${validation.error}`);
+  }
 
   // Get fresh system message and inject it
-  const systemMessage = await systemMessageService.getSystemMessage();
+  const systemMessage = await services.systemMessage.getSystemMessage(
+    services.toolPermissions.getState().currentMode,
+  );
   const openaiChatHistory = convertFromUnifiedHistoryWithSystemMessage(
     chatHistory,
     systemMessage,
@@ -258,6 +273,15 @@ export async function processStreamingResponse(
       error: error.message || String(error),
     });
 
+    try {
+      posthogService.capture("apiRequest", {
+        model: model.model,
+        durationMs: errorDuration,
+        success: false,
+        error: error.message || String(error),
+      });
+    } catch {}
+
     if (error.name === "AbortError" || abortController?.signal.aborted) {
       logger.debug("Stream aborted by user");
       return {
@@ -267,6 +291,13 @@ export async function processStreamingResponse(
         shouldContinue: false,
       };
     }
+
+    // Handle context length errors with helpful message
+    if (isContextLengthError(error)) {
+      logger.debug(`Context length exceeded: ${error}`);
+      throw new Error(`Context length exceeded: ${error}`);
+    }
+
     throw error;
   }
 
@@ -274,7 +305,7 @@ export async function processStreamingResponse(
 
   // Validate tool calls have complete arguments
   const validToolCalls = toolCalls.filter((tc) => {
-    if (!tc.arguments || !tc.name) {
+    if (!tc.name) {
       logger.error("Incomplete tool call", {
         id: tc.id,
         name: tc.name,
@@ -298,12 +329,14 @@ export async function processStreamingResponse(
 }
 
 // Main function that handles the conversation loop
+// eslint-disable-next-line complexity, max-params
 export async function streamChatResponse(
   chatHistory: ChatHistoryItem[],
   model: ModelConfig,
   llmApi: BaseLlmApi,
   abortController: AbortController,
   callbacks?: StreamCallbacks,
+  isCompacting = false,
 ) {
   logger.debug("streamChatResponse called", {
     model,
@@ -311,19 +344,61 @@ export async function streamChatResponse(
     hasCallbacks: !!callbacks,
   });
 
-  const serviceResult = getServiceSync<ToolPermissionServiceState>(
-    SERVICE_NAMES.TOOL_PERMISSIONS,
-  );
-  const isHeadless = serviceResult.value?.isHeadless ?? false;
+  const isHeadless = services.toolPermissions.isHeadless();
 
   let fullResponse = "";
   let finalResponse = "";
 
   while (true) {
+    // If ChatHistoryService is available, refresh local chatHistory view
+    const chatHistorySvc = services.chatHistory;
+    if (
+      typeof chatHistorySvc?.isReady === "function" &&
+      chatHistorySvc.isReady()
+    ) {
+      try {
+        // use chat history from params when isCompacting is true
+        // otherwise use the full history
+        if (!isCompacting) {
+          chatHistory = chatHistorySvc.getHistory();
+        }
+      } catch {}
+    }
     logger.debug("Starting conversation iteration");
 
+    logger.debug("debug1 streamChatResponse history", { chatHistory });
+
+    // avoid pre-compaction when compaction is in progress
+    // this also avoids infinite compaction call stacks
+    if (!isCompacting) {
+      // Pre-API auto-compaction checkpoint
+      const { wasCompacted: preCompacted, chatHistory: preCompactHistory } =
+        await handleAutoCompaction(chatHistory, model, llmApi, {
+          isHeadless,
+          callbacks: {
+            onSystemMessage: callbacks?.onSystemMessage,
+            onContent: callbacks?.onContent,
+          },
+        });
+
+      if (preCompacted) {
+        logger.debug("Pre-API compaction occurred, updating chat history");
+        // Update chat history after pre-compaction
+        const chatHistorySvc2 = services.chatHistory;
+        if (
+          typeof chatHistorySvc2?.isReady === "function" &&
+          chatHistorySvc2.isReady()
+        ) {
+          chatHistorySvc2.setHistory(preCompactHistory);
+          chatHistory = chatHistorySvc2.getHistory();
+        } else {
+          chatHistory = [...preCompactHistory];
+        }
+      }
+    }
+
     // Recompute tools on each iteration to handle mode changes during streaming
-    const tools = await getAllTools();
+    const tools = await getRequestTools(isHeadless);
 
     logger.debug("Tools prepared", {
       toolCount: tools.length,
@@ -333,14 +408,18 @@ export async function streamChatResponse(
     // Get response from LLM
     const { content, toolCalls, shouldContinue } =
       await processStreamingResponse({
+        isHeadless,
         chatHistory,
         model,
         llmApi,
         abortController,
         callbacks,
-        isHeadless,
         tools,
       });
+
+    if (abortController?.signal.aborted) {
+      return finalResponse || content || fullResponse;
+    }
 
     fullResponse += content;
 
@@ -355,7 +434,7 @@ export async function streamChatResponse(
     // Handle content display
     handleContentDisplay(content, callbacks, isHeadless);
 
-    // Handle tool calls and check for early return
+    // Handle tool calls and check for early return. This updates history via ChatHistoryService.
     const shouldReturn = await handleToolCalls(
       toolCalls,
       chatHistory,
@@ -381,7 +460,18 @@ export async function streamChatResponse(
 
       // Only update chat history if compaction actually occurred
       if (wasCompacted) {
-        chatHistory = [...updatedChatHistory];
+        // Always prefer service; local copy is for temporary reads only
+        const chatHistorySvc2 = services.chatHistory;
+        if (
+          typeof chatHistorySvc2?.isReady === "function" &&
+          chatHistorySvc2.isReady()
+        ) {
+          chatHistorySvc2.setHistory(updatedChatHistory);
+          chatHistory = chatHistorySvc2.getHistory();
+        } else {
+          // Fallback only when service is unavailable
+          chatHistory = [...updatedChatHistory];
+        }
       }
     }
 
@@ -400,4 +490,3 @@ export async function streamChatResponse(
   // Otherwise, return the full response
   return isHeadless ? finalResponse : fullResponse;
 }
-export { getAllTools };

@@ -1,28 +1,36 @@
-import { exec } from "child_process";
-import { promisify } from "util";
-
 import chalk from "chalk";
 import type { ChatHistoryItem } from "core/index.js";
-import { convertFromUnifiedHistory } from "core/util/messageConversion.js";
 import express, { Request, Response } from "express";
 
-import { getAssistantSlug } from "../auth/workos.js";
+import { ToolPermissionServiceState } from "src/services/ToolPermissionService.js";
+import { posthogService } from "src/telemetry/posthogService.js";
+import { prependPrompt } from "src/util/promptProcessor.js";
+
+import { getAccessToken, getAssistantSlug } from "../auth/workos.js";
+import { runEnvironmentInstallSafe } from "../environment/environmentHandler.js";
 import { processCommandFlags } from "../flags/flagProcessor.js";
+import { setAgentId } from "../index.js";
 import { toolPermissionManager } from "../permissions/permissionManager.js";
 import {
   getService,
   initializeServices,
   SERVICE_NAMES,
+  services,
 } from "../services/index.js";
 import {
+  AgentFileServiceState,
   AuthServiceState,
   ConfigServiceState,
   ModelServiceState,
 } from "../services/types.js";
-import { createSession, updateSessionHistory } from "../session.js";
+import { createSession, getCompleteStateSnapshot } from "../session.js";
+import { messageQueue } from "../stream/messageQueue.js";
 import { constructSystemMessage } from "../systemMessage.js";
 import { telemetryService } from "../telemetry/telemetryService.js";
+import { reportFailureTool } from "../tools/reportFailure.js";
+import { gracefulExit, updateAgentMetadata } from "../util/exit.js";
 import { formatError } from "../util/formatError.js";
+import { getGitDiffSnapshot } from "../util/git.js";
 import { logger } from "../util/logger.js";
 import { readStdinSync } from "../util/stdin.js";
 
@@ -32,14 +40,20 @@ import {
   type ServerState,
 } from "./serve.helpers.js";
 
-const execAsync = promisify(exec);
-
 interface ServeOptions extends ExtendedCommandOptions {
   timeout?: string;
   port?: string;
+  /** Storage identifier for remote sync */
+  id?: string;
 }
 
+// eslint-disable-next-line max-statements
 export async function serve(prompt?: string, options: ServeOptions = {}) {
+  await posthogService.capture("sessionStart", {});
+
+  // Set agent ID for error reporting if provided
+  setAgentId(options.id);
+
   // Check if prompt should come from stdin instead of parameter
   let actualPrompt = prompt;
   if (!prompt) {
@@ -54,6 +68,8 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
   const timeoutMs = timeoutSeconds * 1000;
   const port = parseInt(options.port || "8000", 10);
 
+  // Environment install script will be deferred until after server startup to avoid blocking
+
   // Initialize services with tool permission overrides
   const { permissionOverrides } = processCommandFlags(options);
 
@@ -64,10 +80,13 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
   });
 
   // Get initialized services from the service container
-  const [configState, modelState] = await Promise.all([
-    getService<ConfigServiceState>(SERVICE_NAMES.CONFIG),
-    getService<ModelServiceState>(SERVICE_NAMES.MODEL),
-  ]);
+  const [configState, modelState, permissionsState, agentFileState] =
+    await Promise.all([
+      getService<ConfigServiceState>(SERVICE_NAMES.CONFIG),
+      getService<ModelServiceState>(SERVICE_NAMES.MODEL),
+      getService<ToolPermissionServiceState>(SERVICE_NAMES.TOOL_PERMISSIONS),
+      getService<AgentFileServiceState>(SERVICE_NAMES.AGENT_FILE),
+    ]);
 
   if (!configState.config || !modelState.llmApi || !modelState.model) {
     throw new Error("Failed to initialize required services");
@@ -84,6 +103,7 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
   if (authState.organizationId) {
     telemetryService.updateOrganization(authState.organizationId);
   }
+  const accessToken = getAccessToken(authState.authConfig);
 
   // Log configuration information
   const organizationId = authState.organizationId || "personal";
@@ -108,6 +128,7 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
 
   // Initialize session with system message
   const systemMessage = await constructSystemMessage(
+    permissionsState.currentMode,
     options.rule,
     undefined,
     true,
@@ -123,6 +144,13 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
 
   const session = createSession(initialHistory);
 
+  // Align ChatHistoryService with server session and enable remote mode
+  try {
+    await services.chatHistory.initialize(session, false);
+  } catch {
+    // Fallback: continue even if service init fails; stream will still work with arrays
+  }
+
   // Initialize server state
   const state: ServerState = {
     session,
@@ -130,11 +158,41 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
     model,
     isProcessing: false,
     lastActivity: Date.now(),
-    messageQueue: [],
     currentAbortController: null,
-    shouldInterrupt: false,
     serverRunning: true,
     pendingPermission: null,
+  };
+
+  const syncSessionHistory = () => {
+    try {
+      state.session.history = services.chatHistory.getHistory();
+    } catch (e) {
+      logger.debug(
+        `Failed to sync session history from ChatHistoryService: ${formatError(e)}`,
+      );
+    }
+  };
+
+  const storageSyncService = services.storageSync;
+  let storageSyncActive = await storageSyncService.startFromOptions({
+    storageOption: options.id,
+    accessToken,
+    syncSessionHistory,
+    getCompleteStateSnapshot: () =>
+      getCompleteStateSnapshot(
+        state.session,
+        state.isProcessing,
+        messageQueue.getQueueLength(),
+        state.pendingPermission,
+      ),
+    isActive: () => state.serverRunning,
+  });
+
+  const stopStorageSync = () => {
+    if (storageSyncActive) {
+      storageSyncService.stop();
+      storageSyncActive = false;
+    }
   };
 
   // Record session start
@@ -147,12 +205,14 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
   // GET /state - Return the current state
   app.get("/state", (_req: Request, res: Response) => {
     state.lastActivity = Date.now();
-    res.json({
-      chatHistory: convertFromUnifiedHistory(state.session.history), // Convert back to legacy format for API
-      isProcessing: state.isProcessing,
-      messageQueueLength: state.messageQueue.length,
-      pendingPermission: state.pendingPermission,
-    });
+    syncSessionHistory();
+    const stateSnapshot = getCompleteStateSnapshot(
+      state.session,
+      state.isProcessing,
+      messageQueue.getQueueLength(),
+      state.pendingPermission,
+    );
+    res.json(stateSnapshot);
   });
 
   // POST /message - Queue a message and potentially interrupt
@@ -165,17 +225,11 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
     }
 
     // Queue the message
-    state.messageQueue.push(message);
-
-    // If currently processing, set interrupt flag
-    if (state.isProcessing && state.currentAbortController) {
-      state.shouldInterrupt = true;
-    }
+    await messageQueue.enqueueMessage(message);
 
     res.json({
       queued: true,
-      position: state.messageQueue.length,
-      willInterrupt: state.shouldInterrupt,
+      position: messageQueue.getQueueLength(),
     });
 
     // Process messages if not already processing
@@ -217,39 +271,56 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
     });
   });
 
+  // POST /pause - Pause the current agent run (like pressing escape in TUI)
+  app.post("/pause", async (_req: Request, res: Response) => {
+    state.lastActivity = Date.now();
+
+    // Check if there's anything to pause
+    if (!state.isProcessing) {
+      return res.json({
+        success: false,
+        message: "No active processing to pause",
+      });
+    }
+
+    // Abort the current processing
+    if (state.currentAbortController) {
+      state.currentAbortController.abort();
+    }
+
+    // Set isProcessing to false
+    state.isProcessing = false;
+
+    res.json({
+      success: true,
+      message: "Agent run paused",
+    });
+  });
+
   // GET /diff - Return git diff against main branch
   app.get("/diff", async (_req: Request, res: Response) => {
     state.lastActivity = Date.now();
 
     try {
-      // First check if we're in a git repository
-      await execAsync("git rev-parse --git-dir");
+      const diffResult = await getGitDiffSnapshot();
 
-      // Get the diff against main branch
-      const { stdout } = await execAsync("git diff main");
-
-      res.json({
-        diff: stdout,
-      });
-    } catch (error: any) {
-      // Git diff returns exit code 1 when there are differences, which is normal
-      if (error.code === 1 && error.stdout) {
-        res.json({
-          diff: error.stdout,
-        });
-      } else if (error.code === 128) {
-        // Handle case where we're not in a git repo or main branch doesn't exist
+      if (!diffResult.repoFound) {
         res.status(404).json({
           error: "Not in a git repository or main branch doesn't exist",
           diff: "",
         });
-      } else {
-        logger.error(`Git diff error: ${formatError(error)}`);
-        res.status(500).json({
-          error: `Failed to get git diff: ${formatError(error)}`,
-          diff: "",
-        });
+        return;
       }
+
+      res.json({
+        diff: diffResult.diff,
+      });
+    } catch (error) {
+      logger.error(`Git diff error: ${formatError(error)}`);
+      res.status(500).json({
+        error: `Failed to get git diff: ${formatError(error)}`,
+        diff: "",
+      });
     }
   });
 
@@ -270,14 +341,12 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
 
     // Set server running flag to false to stop processing
     state.serverRunning = false;
+    stopStorageSync();
 
     // Abort any current processing
     if (state.currentAbortController) {
       state.currentAbortController.abort();
     }
-
-    // Clear the message queue
-    state.messageQueue = [];
 
     // Clean up intervals
     if (inactivityChecker) {
@@ -286,15 +355,28 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
     }
 
     // Give a moment for the response to be sent
-    setTimeout(() => {
-      server.close(() => {
+    const handleExitResponse = async () => {
+      server.close(async () => {
         telemetryService.stopActiveTime();
-        process.exit(0);
+
+        // Update metadata one final time before exiting
+        try {
+          const history = services.chatHistory?.getHistory();
+          await updateAgentMetadata(history);
+        } catch (err) {
+          logger.debug("Failed to update metadata (non-critical)", err as any);
+        }
+
+        gracefulExit(0).catch((err) => {
+          logger.error(`Graceful exit failed: ${formatError(err)}`);
+          process.exit(1);
+        });
       });
-    }, 100);
+    };
+    setTimeout(handleExitResponse, 100);
   });
 
-  const server = app.listen(port, () => {
+  const server = app.listen(port, async () => {
     console.log(chalk.green(`Server started on http://localhost:${port}`));
     console.log(chalk.dim("Endpoints:"));
     console.log(chalk.dim("  GET  /state      - Get current agent state"));
@@ -308,6 +390,7 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
         "  POST /permission - Approve/reject tool (body: { requestId, approved })",
       ),
     );
+    console.log(chalk.dim("  POST /pause      - Pause the current agent run"));
     console.log(
       chalk.dim("  GET  /diff       - Get git diff against main branch"),
     );
@@ -320,27 +403,66 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
       ),
     );
 
+    // Run environment install script after server startup
+    runEnvironmentInstallSafe();
+
     // If initial prompt provided, queue it for processing
-    if (actualPrompt) {
+    const initialPrompt = prependPrompt(
+      agentFileState?.agentFile?.prompt,
+      actualPrompt,
+    );
+    if (initialPrompt) {
       console.log(chalk.dim("\nProcessing initial prompt..."));
-      state.messageQueue.push(actualPrompt);
+      await messageQueue.enqueueMessage(initialPrompt);
       processMessages(state, llmApi);
     }
   });
 
   // Process messages from the queue
-  async function processMessages(state: ServerState, llmApi: any) {
-    while (state.messageQueue.length > 0 && state.serverRunning) {
-      const userMessage = state.messageQueue.shift()!;
-      state.isProcessing = true;
-      state.shouldInterrupt = false;
-      state.lastActivity = Date.now();
+  function removePartialAssistantMessage(state: ServerState) {
+    try {
+      const svcHistory = services.chatHistory.getHistory();
+      const last = svcHistory[svcHistory.length - 1];
+      if (last && last.message.role === "assistant" && !last.message.content) {
+        const trimmed = svcHistory.slice(0, -1);
+        services.chatHistory.setHistory(trimmed);
+      }
+    } catch {
+      const lastMessage =
+        state.session.history[state.session.history.length - 1];
+      if (
+        lastMessage &&
+        lastMessage.message.role === "assistant" &&
+        !lastMessage.message.content
+      ) {
+        state.session.history.pop();
+      }
+    }
+  }
 
-      // Add user message to history
-      state.session.history.push({
-        message: { role: "user", content: userMessage },
-        contextItems: [],
-      });
+  async function processMessages(state: ServerState, llmApi: any) {
+    let processedMessage = false;
+    while (state.serverRunning) {
+      const queuedMessage = messageQueue.getNextMessage();
+      if (!queuedMessage) {
+        break;
+      }
+
+      const userMessage = queuedMessage.message;
+      state.isProcessing = true;
+      state.lastActivity = Date.now();
+      processedMessage = true;
+
+      // Add user message via ChatHistoryService (single source of truth)
+      try {
+        services.chatHistory.addUserMessage(userMessage);
+      } catch {
+        // Fallback to local array if service unavailable
+        state.session.history.push({
+          message: { role: "user", content: userMessage },
+          contextItems: [],
+        });
+      }
 
       try {
         // Create new abort controller for this response
@@ -351,39 +473,67 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
           state,
           llmApi,
           state.currentAbortController,
-          () => state.shouldInterrupt,
+          () => false,
         );
 
-        // Save session after successful response
-        updateSessionHistory(state.session.history);
+        // No direct persistence here; ChatHistoryService handles persistence when appropriate
 
         state.lastActivity = Date.now();
+
+        // Update metadata after successful agent turn
+        try {
+          const history = services.chatHistory?.getHistory();
+          await updateAgentMetadata(history);
+        } catch (metadataErr) {
+          // Non-critical: log but don't fail the agent execution
+          logger.debug(
+            "Failed to update metadata after turn (non-critical)",
+            metadataErr as any,
+          );
+        }
       } catch (e: any) {
         if (e.name === "AbortError") {
           logger.debug("Response interrupted");
-          // Remove the partial assistant message if it exists
-          const lastMessage =
-            state.session.history[state.session.history.length - 1];
-          if (
-            lastMessage &&
-            lastMessage.message.role === "assistant" &&
-            !lastMessage.message.content
-          ) {
-            state.session.history.pop();
-          }
+          // Remove any partial assistant message
+          removePartialAssistantMessage(state);
         } else {
           logger.error(`Error: ${formatError(e)}`);
-          // Add error message to chat history and display messages
+
+          // Add error message via ChatHistoryService
           const errorMessage = `Error: ${formatError(e)}`;
-          state.session.history.push({
-            message: { role: "assistant", content: errorMessage },
-            contextItems: [],
-          });
+          try {
+            services.chatHistory.addAssistantMessage(errorMessage);
+          } catch {
+            state.session.history.push({
+              message: { role: "assistant", content: errorMessage },
+              contextItems: [],
+            });
+          }
+
+          // Report failure to control plane (retries exhausted or non-retryable error)
+          try {
+            await reportFailureTool.run({
+              errorMessage: formatError(e),
+            });
+          } catch (reportError) {
+            logger.error(
+              `Failed to report agent failure: ${formatError(reportError)}`,
+            );
+            // Don't block on reporting failure
+          }
         }
       } finally {
         state.currentAbortController = null;
         state.isProcessing = false;
       }
+    }
+
+    if (
+      processedMessage &&
+      state.serverRunning &&
+      messageQueue.getQueueLength() === 0
+    ) {
+      await storageSyncService.markAgentStatusUnread();
     }
   }
 
@@ -396,9 +546,22 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
         ),
       );
       state.serverRunning = false;
-      server.close(() => {
+      stopStorageSync();
+      server.close(async () => {
         telemetryService.stopActiveTime();
-        process.exit(0);
+
+        // Update metadata one final time before exiting
+        try {
+          const history = services.chatHistory?.getHistory();
+          await updateAgentMetadata(history);
+        } catch (err) {
+          logger.debug("Failed to update metadata (non-critical)", err as any);
+        }
+
+        gracefulExit(0).catch((err) => {
+          logger.error(`Graceful exit failed: ${formatError(err)}`);
+          process.exit(1);
+        });
       });
       if (inactivityChecker) {
         clearInterval(inactivityChecker);
@@ -411,13 +574,26 @@ export async function serve(prompt?: string, options: ServeOptions = {}) {
   process.on("SIGINT", () => {
     console.log(chalk.yellow("\nShutting down server..."));
     state.serverRunning = false;
+    stopStorageSync();
     if (inactivityChecker) {
       clearInterval(inactivityChecker);
       inactivityChecker = null;
     }
-    server.close(() => {
+    server.close(async () => {
       telemetryService.stopActiveTime();
-      process.exit(0);
+
+      // Update metadata one final time before exiting
+      try {
+        const history = services.chatHistory?.getHistory();
+        await updateAgentMetadata(history);
+      } catch (err) {
+        logger.debug("Failed to update metadata (non-critical)", err as any);
+      }
+
+      gracefulExit(0).catch((err) => {
+        logger.error(`Graceful exit failed: ${formatError(err)}`);
+        process.exit(1);
+      });
     });
   });
 }

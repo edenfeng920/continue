@@ -14,6 +14,7 @@ function FunctionSpecificToolCallDiv({
   historyIndex: number;
 }) {
   const args = toolCallState.parsedArgs;
+  const processedArgs = toolCallState.processedArgs;
   const toolCall = toolCallState.toolCall;
 
   switch (toolCall.function?.name) {
@@ -28,25 +29,8 @@ function FunctionSpecificToolCallDiv({
     case BuiltInToolNames.EditExistingFile:
       return (
         <EditFile
-          relativeFilePath={args?.filepath ?? ""}
-          changes={args?.changes ?? ""}
-          toolCallId={toolCall.id}
-          historyIndex={historyIndex}
-        />
-      );
-    case BuiltInToolNames.SearchAndReplaceInFile:
-      const changes = args?.diffs
-        ? Array.isArray(args.diffs)
-          ? args.diffs?.join("\n\n---\n\n")
-          : args.diffs
-        : "";
-
-      return (
-        <EditFile
-          showToolCallStatusIcon={true}
-          status={toolCallState.status}
-          relativeFilePath={args?.filepath ?? ""}
-          changes={changes}
+          relativeFilePath={processedArgs?.filepath ?? args?.filepath ?? ""}
+          changes={processedArgs?.changes ?? args?.changes ?? ""}
           toolCallId={toolCall.id}
           historyIndex={historyIndex}
         />
@@ -54,16 +38,17 @@ function FunctionSpecificToolCallDiv({
     case BuiltInToolNames.SingleFindAndReplace:
       const edits: EditOperation[] = [
         {
-          old_string: args?.old_string ?? "",
-          new_string: args?.new_string ?? "",
-          replace_all: args?.replace_all,
+          old_string: processedArgs?.old_string ?? args?.old_string ?? "",
+          new_string: processedArgs?.new_string ?? args?.new_string ?? "",
+          replace_all: processedArgs?.replace_all ?? args?.replace_all,
         },
       ];
       return (
         <FindAndReplaceDisplay
-          editingFileContents={args?.editingFileContents}
-          fileUri={args?.fileUri}
-          relativeFilePath={args?.filepath ?? ""}
+          editingFileContents={processedArgs?.editingFileContents}
+          fileUri={processedArgs?.fileUri ?? ""}
+          newFileContents={processedArgs?.newFileContents}
+          relativeFilePath={processedArgs?.filepath ?? args?.filepath ?? ""}
           edits={edits}
           toolCallId={toolCall.id}
           historyIndex={historyIndex}
@@ -72,10 +57,11 @@ function FunctionSpecificToolCallDiv({
     case BuiltInToolNames.MultiEdit:
       return (
         <FindAndReplaceDisplay
-          editingFileContents={args?.editingFileContents}
-          relativeFilePath={args?.filepath ?? ""}
-          fileUri={args?.fileUri}
-          edits={args?.edits ?? []}
+          editingFileContents={processedArgs?.editingFileContents}
+          relativeFilePath={processedArgs?.filepath ?? args?.filepath ?? ""}
+          fileUri={processedArgs?.fileUri ?? ""}
+          newFileContents={processedArgs?.newFileContents}
+          edits={processedArgs?.edits ?? args?.edits ?? []}
           toolCallId={toolCall.id}
           historyIndex={historyIndex}
         />

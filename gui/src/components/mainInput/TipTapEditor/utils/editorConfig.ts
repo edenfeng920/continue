@@ -200,7 +200,7 @@ export function createEditorConfig(options: {
                 return false;
               }
 
-              onEnterRef.current({
+              onEnter({
                 useCodebase: false,
                 noContext: !useActiveFile,
               });
@@ -208,16 +208,19 @@ export function createEditorConfig(options: {
             },
 
             "Mod-Enter": () => {
-              onEnterRef.current({
-                useCodebase: true,
-                noContext: !useActiveFile,
+              posthog.capture("gui_use_active_file_enter");
+
+              onEnter({
+                useCodebase: false,
+                noContext: !!useActiveFile,
               });
+
               return true;
             },
             "Alt-Enter": () => {
               posthog.capture("gui_use_active_file_enter");
 
-              onEnterRef.current({
+              onEnter({
                 useCodebase: false,
                 noContext: !!useActiveFile,
               });
@@ -343,30 +346,27 @@ export function createEditorConfig(options: {
     editable: !isStreaming || props.isMainInput,
   });
 
-  const onEnterRef = useUpdatingRef(
-    (modifiers: InputModifiers) => {
-      if (!editor) {
-        return;
-      }
-      if (isStreaming || (codeToEdit.length === 0 && isInEdit)) {
-        return;
-      }
+  const onEnter = (modifiers: InputModifiers) => {
+    if (!editor) {
+      return;
+    }
+    if (isStreamingRef.current || (codeToEdit.length === 0 && isInEdit)) {
+      return;
+    }
 
-      const json = editor.getJSON();
+    const json = editor.getJSON();
 
-      // Don't do anything if input box doesn't have valid content
-      if (!hasValidEditorContent(json)) {
-        return;
-      }
+    // Don't do anything if input box doesn't have valid content
+    if (!hasValidEditorContent(json)) {
+      return;
+    }
 
-      if (props.isMainInput) {
-        addRef.current(json);
-      }
+    if (props.isMainInput) {
+      addRef.current(json);
+    }
 
-      props.onEnter(json, modifiers, editor);
-    },
-    [props.onEnter, editor, props.isMainInput, codeToEdit, isInEdit],
-  );
+    props.onEnter(json, modifiers, editor);
+  };
 
-  return { editor, onEnterRef };
+  return { editor, onEnter };
 }

@@ -1,16 +1,25 @@
 // Helper functions extracted from streamChatResponse.ts to reduce file size
 
+import type { ToolStatus } from "core/index.js";
+import { ContinueError, ContinueErrorReason } from "core/util/errors.js";
 import { ChatCompletionToolMessageParam } from "openai/resources/chat/completions.mjs";
+
+import { ToolPermissionServiceState } from "src/services/ToolPermissionService.js";
 
 import { checkToolPermission } from "../permissions/permissionChecker.js";
 import { toolPermissionManager } from "../permissions/permissionManager.js";
-import { ToolCallRequest } from "../permissions/types.js";
+import { ToolCallRequest, ToolPermissions } from "../permissions/types.js";
+import {
+  SERVICE_NAMES,
+  serviceContainer,
+  services,
+} from "../services/index.js";
+import { posthogService } from "../telemetry/posthogService.js";
 import { telemetryService } from "../telemetry/telemetryService.js";
 import { calculateTokenCost } from "../telemetry/utils.js";
 import {
   executeToolCall,
-  getAllBuiltinTools,
-  getAvailableTools,
+  getAllAvailableTools,
   Tool,
   validateToolCallArgsPresent,
 } from "../tools/index.js";
@@ -19,16 +28,26 @@ import { logger } from "../util/logger.js";
 
 import { StreamCallbacks } from "./streamChatResponse.types.js";
 
+export interface ToolResultWithStatus extends ChatCompletionToolMessageParam {
+  status: ToolStatus;
+}
+
 // Helper function to handle permission denied
 export function handlePermissionDenied(
   toolCall: PreprocessedToolCall,
   chatHistoryEntries: ChatCompletionToolMessageParam[],
   callbacks?: StreamCallbacks,
+  reason: "user" | "policy" = "user",
 ): void {
-  const deniedMessage = `Permission denied by user`;
+  const deniedMessage =
+    reason === "policy"
+      ? `Command blocked by security policy`
+      : `Permission denied by user`;
+
   logger.info("Tool call denied", {
     name: toolCall.name,
     arguments: toolCall.arguments,
+    reason,
   });
 
   chatHistoryEntries.push({
@@ -38,26 +57,7 @@ export function handlePermissionDenied(
   });
 
   callbacks?.onToolResult?.(deniedMessage, toolCall.name, "canceled");
-  logger.debug("Tool call rejected - stopping stream");
-}
-
-// Helper function to handle headless mode permission
-export function handleHeadlessPermission(
-  toolCall: PreprocessedToolCall,
-): never {
-  const allBuiltinTools = getAllBuiltinTools();
-  const tool = allBuiltinTools.find((t) => t.name === toolCall.name);
-  const toolName = tool?.displayName || toolCall.name;
-
-  console.error(
-    `Error: Tool '${toolName}' requires permission but cn is running in headless mode.`,
-  );
-  console.error(`If you want to allow this tool, use --allow ${toolName}.`);
-  console.error(
-    `If you don't want the tool to be included, use --exclude ${toolName}.`,
-  );
-
-  process.exit(1);
+  logger.debug(`Tool call rejected (${reason}) - stopping stream`);
 }
 
 // Helper function to request user permission
@@ -110,25 +110,30 @@ export async function requestUserPermission(
 
 // Helper function to check if tool permission is needed
 export async function checkToolPermissionApproval(
+  permissions: ToolPermissions,
   toolCall: PreprocessedToolCall,
   callbacks?: StreamCallbacks,
   isHeadless?: boolean,
-): Promise<boolean> {
-  const permissionCheck = checkToolPermission(toolCall);
+): Promise<{ approved: boolean; denialReason?: "user" | "policy" }> {
+  const permissionCheck = checkToolPermission(toolCall, permissions);
 
   if (permissionCheck.permission === "allow") {
-    return true;
+    return { approved: true };
   } else if (permissionCheck.permission === "ask") {
     if (isHeadless) {
-      handleHeadlessPermission(toolCall);
+      // "ask" tools are excluded in headless so can only get here by policy evaluation
+      return { approved: false, denialReason: "policy" };
     }
-    return await requestUserPermission(toolCall, callbacks);
+    const userApproved = await requestUserPermission(toolCall, callbacks);
+    return userApproved
+      ? { approved: true }
+      : { approved: false, denialReason: "user" };
   } else if (permissionCheck.permission === "exclude") {
-    // This shouldn't happen as excluded tools are filtered out earlier
-    return false;
+    // Tool blocked by security policy
+    return { approved: false, denialReason: "policy" };
   }
 
-  return false;
+  return { approved: false, denialReason: "policy" };
 }
 
 // Helper function to track first token time
@@ -205,7 +210,7 @@ export function processToolCallDelta(
     toolCallsMap.set(toolCallId, {
       id: toolCallId,
       name: "",
-      arguments: null,
+      arguments: {},
       argumentsStr: "",
       startNotified: false,
     });
@@ -276,6 +281,17 @@ export function recordStreamTelemetry(options: {
     costUsd: cost,
   });
 
+  // Mirror core metrics to PostHog for product analytics
+  try {
+    posthogService.capture("apiRequest", {
+      model: model.model,
+      durationMs: totalDuration,
+      inputTokens,
+      outputTokens,
+      costUsd: cost,
+    });
+  } catch {}
+
   return cost;
 }
 
@@ -286,6 +302,7 @@ export function recordStreamTelemetry(options: {
  * @returns - Preprocessed tool calls that are ready for execution
  */
 export async function preprocessStreamedToolCalls(
+  isHeadless: boolean,
   toolCalls: ToolCall[],
   callbacks?: StreamCallbacks,
 ): Promise<{
@@ -296,12 +313,12 @@ export async function preprocessStreamedToolCalls(
   const errorChatEntries: ChatCompletionToolMessageParam[] = [];
 
   // Get all available tools
-  const availableTools: Tool[] = await getAvailableTools();
 
   // Process each tool call
   for (const toolCall of toolCalls) {
     const startTime = Date.now();
     try {
+      const availableTools: Tool[] = await getAllAvailableTools(isHeadless);
       const tool = availableTools.find((t) => t.name === toolCall.name);
       if (!tool) {
         throw new Error(`Tool ${toolCall.name} not found`);
@@ -328,6 +345,11 @@ export async function preprocessStreamedToolCalls(
       // Notify the UI about the tool start, even though it failed
       callbacks?.onToolStart?.(toolCall.name, toolCall.arguments);
 
+      const errorReason =
+        error instanceof ContinueError
+          ? error.reason
+          : ContinueErrorReason.Unknown;
+
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
@@ -342,6 +364,15 @@ export async function preprocessStreamedToolCalls(
         success: false,
         durationMs: duration,
         error: errorMessage,
+        errorReason,
+        // modelName, TODO
+      });
+      void posthogService.capture("tool_call_outcome", {
+        succeeded: false,
+        toolName: toolCall.name,
+        errorReason,
+        duration_ms: duration,
+        // model: options.modelName, TODO
       });
 
       // Add error to chat history
@@ -363,7 +394,7 @@ export async function preprocessStreamedToolCalls(
  * Executes preprocessed tool calls, handling permissions and results
  * @param preprocessedCalls - The preprocessed tool calls ready for execution
  * @param callbacks - Optional callbacks for notifying of events
- * @returns - Chat history entries with tool results
+ * @returns - Chat history entries with tool results and status information
  */
 export async function executeStreamedToolCalls(
   preprocessedCalls: PreprocessedToolCall[],
@@ -371,82 +402,168 @@ export async function executeStreamedToolCalls(
   isHeadless?: boolean,
 ): Promise<{
   hasRejection: boolean;
-  chatHistoryEntries: ChatCompletionToolMessageParam[];
+  chatHistoryEntries: ToolResultWithStatus[];
 }> {
-  const chatHistoryEntries: ChatCompletionToolMessageParam[] = [];
+  // Strategy: queue permissions (preserve order), then run approved tools in parallel.
+  // If any permission is rejected, cancel the remaining tools in this batch.
+
+  type IndexedCall = { index: number; call: PreprocessedToolCall };
+  const indexedCalls: IndexedCall[] = preprocessedCalls.map((call, index) => ({
+    index,
+    call,
+  }));
+
+  const entriesByIndex = new Map<number, ToolResultWithStatus>();
+  const execPromises: Promise<void>[] = [];
+
   let hasRejection = false;
 
-  // Execute each preprocessed tool call
-  for (const toolCall of preprocessedCalls) {
-    if (hasRejection) {
-      const cancelledMessage = `Cancelled due to previous tool rejection`;
-      chatHistoryEntries.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content: cancelledMessage,
-      });
+  // Permission phase (sequential)
+  for (const { index, call } of indexedCalls) {
+    // Do not cancel subsequent tools after a rejection; handle each independently
 
-      callbacks?.onToolResult?.(cancelledMessage, toolCall.name, "canceled");
-      continue;
-    }
-
-    // Handle remaining tool calls in this batch to maintain chat history consistency
     try {
       logger.debug("Checking tool permissions", {
-        name: toolCall.name,
-        arguments: toolCall.arguments,
+        name: call.name,
+        arguments: call.arguments,
       });
 
-      // Notify tool start - before permission check
-      // This ensures the UI shows the tool call even if it's rejected
-      callbacks?.onToolStart?.(toolCall.name, toolCall.arguments);
+      // Notify tool start before permission check to display in UI fallbacks
+      callbacks?.onToolStart?.(call.name, call.arguments);
 
       // Check tool permissions using helper
-      const approved = await checkToolPermissionApproval(
-        toolCall,
+      const permissionState =
+        await serviceContainer.get<ToolPermissionServiceState>(
+          SERVICE_NAMES.TOOL_PERMISSIONS,
+        );
+      const permissionResult = await checkToolPermissionApproval(
+        permissionState.permissions,
+        call,
         callbacks,
         isHeadless,
       );
 
-      if (!approved) {
-        handlePermissionDenied(toolCall, chatHistoryEntries, callbacks);
+      if (!permissionResult.approved) {
+        // Permission denied: create entry with canceled status
+        const denialReason = permissionResult.denialReason || "user";
+        const deniedMessage =
+          denialReason === "policy"
+            ? `Command blocked by security policy`
+            : `Permission denied by user`;
+
+        const deniedEntry: ToolResultWithStatus = {
+          role: "tool",
+          tool_call_id: call.id,
+          content: deniedMessage,
+          status: "canceled",
+        };
+        entriesByIndex.set(index, deniedEntry);
+        callbacks?.onToolResult?.(
+          String(deniedEntry.content),
+          call.name,
+          "canceled",
+        );
+        // Immediate service update for UI feedback
+        try {
+          services.chatHistory.addToolResult(
+            call.id,
+            String(deniedEntry.content),
+            "canceled",
+          );
+        } catch {}
         hasRejection = true;
+        // Remaining items will be auto-cancelled in subsequent iterations
         continue;
       }
 
-      logger.debug("Executing tool", {
-        name: toolCall.name,
-        arguments: toolCall.arguments,
-      });
+      // Immediately mark as calling for instant UI feedback
+      try {
+        services.chatHistory.updateToolStatus(call.id, "calling");
+      } catch {}
 
-      const toolResult = await executeToolCall(toolCall);
-
-      chatHistoryEntries.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content: toolResult,
-      });
-
-      callbacks?.onToolResult?.(toolResult, toolCall.name, "done");
+      // Start execution immediately for approved calls
+      execPromises.push(
+        (async () => {
+          try {
+            logger.debug("Executing tool", {
+              name: call.name,
+              arguments: call.arguments,
+            });
+            const toolResult = await executeToolCall(call);
+            const entry: ToolResultWithStatus = {
+              role: "tool",
+              tool_call_id: call.id,
+              content: toolResult,
+              status: "done",
+            };
+            entriesByIndex.set(index, entry);
+            callbacks?.onToolResult?.(toolResult, call.name, "done");
+            // Immediate service update for UI feedback
+            try {
+              services.chatHistory.addToolResult(
+                call.id,
+                String(toolResult),
+                "done",
+              );
+            } catch {}
+          } catch (error) {
+            const errorMessage = `Error executing tool ${call.name}: ${
+              error instanceof Error ? error.message : String(error)
+            }`;
+            logger.error("Tool execution failed", {
+              name: call.name,
+              error: errorMessage,
+            });
+            entriesByIndex.set(index, {
+              role: "tool",
+              tool_call_id: call.id,
+              content: errorMessage,
+              status: "errored",
+            });
+            callbacks?.onToolError?.(errorMessage, call.name);
+            // Immediate service update for UI feedback
+            try {
+              services.chatHistory.addToolResult(
+                call.id,
+                errorMessage as string,
+                "errored",
+              );
+            } catch {}
+          }
+        })(),
+      );
     } catch (error) {
-      const errorMessage = `Error executing tool ${toolCall.name}: ${
+      const errorMessage = `Error checking permissions for ${call.name}: ${
         error instanceof Error ? error.message : String(error)
       }`;
-
-      logger.error("Tool execution failed", {
-        name: toolCall.name,
+      logger.error("Permission check failed", {
+        name: call.name,
         error: errorMessage,
       });
-
-      chatHistoryEntries.push({
+      entriesByIndex.set(index, {
         role: "tool",
-        tool_call_id: toolCall.id,
+        tool_call_id: call.id,
         content: errorMessage,
+        status: "errored",
       });
-
-      callbacks?.onToolError?.(errorMessage, toolCall.name);
+      callbacks?.onToolError?.(errorMessage, call.name);
+      // Treat permission errors like execution errors but do not stop the batch
+      try {
+        services.chatHistory.addToolResult(
+          call.id,
+          errorMessage as string,
+          "errored",
+        );
+      } catch {}
     }
   }
+
+  await Promise.all(execPromises);
+
+  // Assemble final entries in original order
+  const chatHistoryEntries: ToolResultWithStatus[] = preprocessedCalls
+    .map((_, index) => entriesByIndex.get(index))
+    .filter((e): e is ToolResultWithStatus => !!e);
 
   return {
     hasRejection,
