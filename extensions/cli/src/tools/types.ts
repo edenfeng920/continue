@@ -1,14 +1,23 @@
-export type ToolParameters = Record<
-  string,
-  {
+import type { ToolPolicy } from "@continuedev/terminal-security";
+
+// JSON Schema compatible parameter definition
+export interface ParameterSchema {
+  type: string;
+  description: string;
+  required?: string[];
+  properties?: Record<string, ParameterSchema>;
+  items?: {
     type: string;
-    description: string;
-    required: boolean;
-    items?: {
-      type: string;
-    };
-  }
->;
+    properties?: Record<string, ParameterSchema>;
+    required?: string[];
+  };
+}
+
+export interface ToolParametersSchema {
+  type: "object";
+  required?: string[];
+  properties: Record<string, ParameterSchema>;
+}
 
 export interface ToolCallPreview {
   type: "text" | "diff" | "checklist";
@@ -20,17 +29,22 @@ export interface ToolCallPreview {
 export interface PreprocessToolCallResult {
   preview?: ToolCallPreview[];
   args: Record<string, any>;
+  context?: { toolCallId: string };
 }
 
 export interface Tool {
   name: string;
   displayName: string;
   description: string;
-  parameters: ToolParameters;
+  parameters: ToolParametersSchema;
   preprocess?: (args: any) => Promise<PreprocessToolCallResult>;
-  run: (args: any) => Promise<string>;
+  run: (args: any, context?: { toolCallId: string }) => Promise<string>;
   readonly?: boolean; // Indicates if the tool is readonly
   isBuiltIn: boolean;
+  evaluateToolCallPolicy?: (
+    basePolicy: ToolPolicy,
+    parsedArgs: Record<string, unknown>,
+  ) => ToolPolicy;
 }
 
 export interface ToolCall {

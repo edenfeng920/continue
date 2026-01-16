@@ -1,5 +1,6 @@
 import { HelperVars } from "../../autocomplete/util/HelperVars.js";
 import { NEXT_EDIT_MODELS } from "../../llm/constants.js";
+import { getUriPathBasename } from "../../util/uri.js";
 import { MERCURY_SYSTEM_PROMPT, UNIQUE_TOKEN } from "../constants.js";
 import {
   currentFileContentBlock,
@@ -11,9 +12,9 @@ import {
   PromptTemplateRenderer,
 } from "../templating/NextEditPromptEngine.js";
 import { ModelSpecificContext, Prompt, PromptMetadata } from "../types.js";
-import { BaseNextEditProvider } from "./BaseNextEditProvider.js";
+import { BaseNextEditModelProvider } from "./BaseNextEditProvider.js";
 
-export class MercuryCoderProvider extends BaseNextEditProvider {
+export class MercuryCoderProvider extends BaseNextEditModelProvider {
   private templateRenderer: PromptTemplateRenderer;
 
   constructor() {
@@ -43,7 +44,7 @@ export class MercuryCoderProvider extends BaseNextEditProvider {
     // Extract the code between the markdown code blocks.
     return message.slice(
       message.indexOf("```\n") + "```\n".length,
-      message.lastIndexOf("\n\n```"),
+      message.lastIndexOf("\n```"),
     );
   }
 
@@ -58,7 +59,7 @@ export class MercuryCoderProvider extends BaseNextEditProvider {
       editableRegionStartLine: context.editableRegionStartLine,
       editableRegionEndLine: context.editableRegionEndLine,
       editDiffHistory: context.diffContext,
-      currentFilePath: context.helper.filepath,
+      currentFilePath: getUriPathBasename(context.helper.filepath),
     };
   }
 

@@ -18,11 +18,13 @@ vi.mock("../session.js", () => ({
   })),
   saveSession: vi.fn(),
   updateSessionHistory: vi.fn(),
+  trackSessionUsage: vi.fn(),
 }));
 
 vi.mock("../util/tokenizer.js", () => ({
   shouldAutoCompact: vi.fn(),
   getAutoCompactMessage: vi.fn(),
+  countChatHistoryItemTokens: vi.fn(() => 100), // Mock return value
 }));
 
 vi.mock("../util/formatError.js", () => ({
@@ -35,6 +37,17 @@ vi.mock("../util/logger.js", () => ({
     debug: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
+  },
+}));
+
+vi.mock("../services/index.js", () => ({
+  services: {
+    systemMessage: {
+      getSystemMessage: vi.fn(() => Promise.resolve("System message")),
+    },
+    toolPermissions: {
+      getState: vi.fn(() => ({ currentMode: "enabled" })),
+    },
   },
 }));
 
@@ -86,7 +99,12 @@ describe("handleAutoCompaction", () => {
       wasCompacted: false,
     });
 
-    expect(shouldAutoCompact).toHaveBeenCalledWith(mockChatHistory, mockModel);
+    expect(shouldAutoCompact).toHaveBeenCalledWith({
+      chatHistory: mockChatHistory,
+      model: mockModel,
+      systemMessage: undefined,
+      tools: undefined,
+    });
   });
 
   it("should perform auto-compaction when context limit is approaching", async () => {
@@ -131,13 +149,21 @@ describe("handleAutoCompaction", () => {
       },
     );
 
-    expect(shouldAutoCompact).toHaveBeenCalledWith(mockChatHistory, mockModel);
+    expect(shouldAutoCompact).toHaveBeenCalledWith({
+      chatHistory: mockChatHistory,
+      model: mockModel,
+      systemMessage: undefined,
+      tools: undefined,
+    });
     expect(getAutoCompactMessage).toHaveBeenCalledWith(mockModel);
     expect(compactChatHistory).toHaveBeenCalledWith(
       mockChatHistory,
       mockModel,
       mockLlmApi,
-      expect.any(Object),
+      expect.objectContaining({
+        callbacks: expect.any(Object),
+        systemMessageTokens: expect.any(Number),
+      }),
     );
     expect(updateSessionHistory).toHaveBeenCalledWith(
       mockCompactionResult.compactedHistory,
@@ -147,7 +173,7 @@ describe("handleAutoCompaction", () => {
       "Auto-compacting...",
     );
     expect(mockCallbacks.onSystemMessage).toHaveBeenCalledWith(
-      "✓ Chat history auto-compacted successfully.",
+      "Chat history auto-compacted successfully.",
     );
 
     expect(result).toEqual({
